@@ -138,7 +138,8 @@ const F = {
   service_type:  {x:439,  y:398, size:32, align:'center', maxW:580, color:'#cc0000'},
   serial_no:     {x:947,  y:398, size:26, align:'center', maxW:125, color:'#000'},
   prod_date:     {x:1248, y:398, size:26, align:'center', maxW:185, color:'#000'},
-  cs_number:     {x:419,  y:502, size:28, align:'center', maxW:305, color:'#000'},
+  cs_number:     {x:419,  y:502, size:28, align:'center', maxW:305, color:'#000'},const FIXED_CLIENT_ID = '764317576361-k25ir8cg376tmhr95cht7e0dukdaivrd.apps.googleusercontent.com';  // ← 본인 Client ID로 교체a
+
   problem:       {x:1049, y:502, size:26, align:'center', maxW:580, color:'#000'},
   time_required: {x:419,  y:1517,size:30, align:'center', maxW:305, color:'#000'},
   worker:        {x:1049, y:1517,size:30, align:'center', maxW:580, color:'#000'},
@@ -148,12 +149,11 @@ const F = {
 const PY=[693,752,810,869,928,986,1044,1103,1162,1220];
 const PNX=504, PNMW=470, PNOX=1049, PNOMW=570, PSZ=27;
 
-let tok=null, ssId='', cId='', sheets=[], selSheets=[], sdMap={}, fList=[], fIdx=0, blobs=[];
+let tok=null, ssId='', cId='', sheets=[], sheetsData=[], selSheets=[], sdMap={}, fList=[], fIdx=0, blobs=[];
 
 // ── 초기화 ──
 // ── OAuth Client ID 고정 (개인용 앱) ──
 const FIXED_CLIENT_ID = '764317576361-k25ir8cg376tmhr95cht7e0dukdaivrd.apps.googleusercontent.com';  // ← 본인 Client ID로 교체
-
 window.onload=()=>{
   const ss=localStorage.getItem('as_ssid')||'';
   if(ss) document.getElementById('ssid').value=ss;
@@ -183,10 +183,15 @@ function doLogin(){
 
 async function loadSheets(){
   try{
-    const r=await gf(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}?fields=sheets.properties.title`);
+    // title + tabColor 같이 가져오기
+    const r=await gf(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}?fields=sheets.properties`);
     const d=await r.json();
     if(d.error) throw new Error(d.error.message);
-    sheets=d.sheets.map(s=>s.properties.title);
+    sheetsData=d.sheets.map(s=>({
+      title: s.properties.title,
+      color: s.properties.tabColor||s.properties.tabColorStyle?.rgbColor||null
+    }));
+    sheets=sheetsData.map(s=>s.title);
     renderList(); show('s-sheets');
     document.getElementById('hs').textContent='STEP 1/3';
     toast(`시트 ${sheets.length}개 로드 완료`);
@@ -197,23 +202,90 @@ async function loadSheets(){
   }
 }
 
-// ── 시트 목록 ──
+// ── 시트 목록 (드래그 선택 + 탭 색상) ──
+let dragStart=-1, dragMode=null; // dragMode: 'check'|'uncheck'
+
 function renderList(){
   const c=document.getElementById('sheetList'); c.innerHTML='';
-  sheets.forEach((n,i)=>{
+  sheetsData.forEach((s,i)=>{
+    const col=s.color;
+    const tabCss=col
+      ? `background:rgba(${Math.round((col.red||0)*255)},${Math.round((col.green||0)*255)},${Math.round((col.blue||0)*255)},0.18);border-left:4px solid rgb(${Math.round((col.red||0)*255)},${Math.round((col.green||0)*255)},${Math.round((col.blue||0)*255)})`
+      : '';
+    const dot=col
+      ? `<span style="width:10px;height:10px;border-radius:50%;background:rgb(${Math.round((col.red||0)*255)},${Math.round((col.green||0)*255)},${Math.round((col.blue||0)*255)});flex-shrink:0;display:inline-block"></span>`
+      : '';
     const d=document.createElement('div');
     d.className='si'; d.id='si'+i;
-    d.innerHTML=`<input type="checkbox" id="ck${i}" onchange="updCnt()">
-      <label for="ck${i}" style="margin:0;font-size:15px;font-weight:500;cursor:pointer;flex:1">${esc(n)}</label>`;
-    d.onclick=e=>{if(e.target.tagName!=='INPUT'){document.getElementById('ck'+i).click();}};
+    d.style.cssText=tabCss;
+    d.innerHTML=`<input type="checkbox" id="ck${i}">
+      ${dot}
+      <label for="ck${i}" style="margin:0;font-size:15px;font-weight:500;cursor:pointer;flex:1;user-select:none">${esc(s.title)}</label>`;
+
+    // 드래그 선택
+    d.addEventListener('mousedown', e=>{
+      if(e.target.tagName==='INPUT') return;
+      e.preventDefault();
+      const ck=document.getElementById('ck'+i);
+      dragMode = ck.checked ? 'uncheck' : 'check';
+      dragStart=i;
+      ck.checked = dragMode==='check';
+      updCnt();
+    });
+    d.addEventListener('mouseover', e=>{
+      if(dragStart===-1) return;
+      const ck=document.getElementById('ck'+i);
+      ck.checked = dragMode==='check';
+      updCnt();
+    });
+
+    // 터치 드래그 (모바일)
+    d.addEventListener('touchstart', e=>{
+      const ck=document.getElementById('ck'+i);
+      dragMode = ck.checked ? 'uncheck' : 'check';
+      dragStart=i;
+      ck.checked = dragMode==='check';
+      updCnt();
+    }, {passive:true});
+    d.addEventListener('touchmove', e=>{
+      if(dragStart===-1) return;
+      const touch=e.touches[0];
+      const el=document.elementFromPoint(touch.clientX, touch.clientY);
+      if(el){
+        const si=el.closest('.si');
+        if(si){
+          const idx=parseInt(si.id.replace('si',''));
+          if(!isNaN(idx)){
+            document.getElementById('ck'+idx).checked = dragMode==='check';
+            updCnt();
+          }
+        }
+      }
+    }, {passive:true});
+
+    // 탭 클릭으로도 체크
+    d.addEventListener('click', e=>{
+      if(e.target.tagName==='INPUT'||e.target.tagName==='LABEL') return;
+      const ck=document.getElementById('ck'+i);
+      ck.checked=!ck.checked; updCnt();
+    });
+
     c.appendChild(d);
   });
+
+  // 드래그 종료
+  if(!document._dragEndSet){
+    document._dragEndSet=true;
+    document.addEventListener('mouseup',  ()=>{dragStart=-1;dragMode=null;});
+    document.addEventListener('touchend', ()=>{dragStart=-1;dragMode=null;});
+  }
   updCnt();
 }
+
 function updCnt(){
   const n=document.querySelectorAll('#sheetList input:checked').length;
   document.getElementById('cnt').textContent=n;
-  sheets.forEach((_,i)=>{
+  sheetsData.forEach((_,i)=>{
     const ck=document.getElementById('ck'+i), si=document.getElementById('si'+i);
     if(ck&&si) si.classList.toggle('on',ck.checked);
   });
@@ -450,13 +522,39 @@ async function genAll(){
     const fn=fname(d), url=URL.createObjectURL(blob);
     blobs.push({fn,url,blob}); res.push({fn,url});
   }
+
+  // 썸네일 그리드 렌더링
   const el=document.getElementById('el'); el.innerHTML='';
+
+  // 썸네일 그리드 컨테이너
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(8,1fr);gap:8px;';
+  el.appendChild(grid);
+
   res.forEach(r=>{
-    const div=document.createElement('div'); div.className='ei';
-    div.innerHTML=`<span>🖼️</span><span class="fn">${esc(r.fn)}</span><a href="${r.url}" download="${esc(r.fn)}">⬇ 저장</a>`;
-    el.appendChild(div);
+    const cell=document.createElement('div');
+    cell.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;';
+
+    // 썸네일 이미지
+    const img=document.createElement('img');
+    img.src=r.url;
+    img.style.cssText='width:100%;aspect-ratio:0.707;object-fit:cover;border-radius:4px;border:1px solid var(--bd);cursor:pointer;';
+    img.title='클릭하여 저장';
+    img.onclick=()=>{const a=document.createElement('a');a.href=r.url;a.download=r.fn;a.click();};
+
+    // 파일명 (날짜_이름만 짧게)
+    const label=document.createElement('div');
+    // 파일명에서 날짜 제거하고 이름_서비스만
+    const shortName = r.fn.replace(/^\d{8}_/,'').replace(/\.jpg$/,'');
+    label.textContent=shortName;
+    label.style.cssText='font-size:10px;color:var(--ts);text-align:center;word-break:break-all;line-height:1.3;width:100%;';
+
+    cell.appendChild(img);
+    cell.appendChild(label);
+    grid.appendChild(cell);
   });
-  toast('✅ 모든 JPG 생성 완료!');
+
+  toast('✅ 모든 JPG 생성 완료! 이미지 클릭하면 저장');
 }
 
 async function renderJPG(tmpl, d){
