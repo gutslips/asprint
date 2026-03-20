@@ -71,9 +71,12 @@ textarea{resize:vertical;min-height:70px}
   <div style="font-size:22px;font-weight:700;margin-bottom:8px">방문AS 접수증</div>
   <div style="font-size:14px;color:var(--ts);margin-bottom:32px;line-height:1.6">Google 계정으로 로그인하세요</div>
   <div class="card" style="width:100%;text-align:left;margin-bottom:20px">
-    <div class="ct">⚙️ 설정</div>
-    <div class="fg"><label>OAuth Client ID</label><input type="text" id="cid" placeholder="123456789-xxxx.apps.googleusercontent.com"></div>
-    <div class="fg"><label>스프레드시트 ID</label><input type="text" id="ssid" placeholder="/d/ 뒤 ~ /edit 앞"></div>
+    <div class="ct">📊 스프레드시트</div>
+    <div class="fg">
+      <label>구글 시트 URL 또는 ID</label>
+      <input type="text" id="ssid" placeholder="시트 주소 전체 또는 ID만 붙여넣기">
+      <p style="font-size:12px;color:var(--ts);margin-top:6px">전체 URL을 그대로 붙여넣어도 됩니다</p>
+    </div>
   </div>
   <button class="btn bp" onclick="doLogin()" id="lbtn">
     <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFF" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
@@ -129,42 +132,44 @@ const SCOPE='https://www.googleapis.com/auth/spreadsheets.readonly';
 
 // 정밀 좌표 (blank_v2.png 픽셀 분석 기반)
 const F = {
-  customer_name: {x:506, y:310, size:28, align:'center', maxW:480, color:'#000'},
-  model_name:    {x:901, y:310, size:24, align:'center', maxW:285, color:'#000'},
-  visit_date:    {x:1248,y:310, size:23, align:'center', maxW:185, color:'#000'},
-  service_type:  {x:439, y:398, size:28, align:'center', maxW:580, color:'#cc0000'},
-  serial_no:     {x:947, y:398, size:23, align:'center', maxW:125, color:'#000'},
-  prod_date:     {x:1248,y:398, size:23, align:'center', maxW:185, color:'#000'},
-  cs_number:     {x:419, y:502, size:24, align:'center', maxW:305, color:'#000'},
-  problem:       {x:1049,y:502, size:23, align:'center', maxW:580, color:'#000'},
-  time_required: {x:419, y:1517,size:26, align:'center', maxW:305, color:'#000'},
-  worker:        {x:1049,y:1517,size:26, align:'center', maxW:580, color:'#000'},
-  special_notes: {x:145, y:1388,size:24, align:'left',   maxW:1190,color:'#000'},
+  customer_name: {x:270,  y:310, size:32, align:'left',   maxW:470, color:'#000'},
+  model_name:    {x:901,  y:310, size:28, align:'center', maxW:285, color:'#000'},
+  visit_date:    {x:1248, y:310, size:26, align:'center', maxW:185, color:'#000'},
+  service_type:  {x:439,  y:398, size:32, align:'center', maxW:580, color:'#cc0000'},
+  serial_no:     {x:947,  y:398, size:26, align:'center', maxW:125, color:'#000'},
+  prod_date:     {x:1248, y:398, size:26, align:'center', maxW:185, color:'#000'},
+  cs_number:     {x:419,  y:502, size:28, align:'center', maxW:305, color:'#000'},
+  problem:       {x:1049, y:502, size:26, align:'center', maxW:580, color:'#000'},
+  time_required: {x:419,  y:1517,size:30, align:'center', maxW:305, color:'#000'},
+  worker:        {x:1049, y:1517,size:30, align:'center', maxW:580, color:'#000'},
+  special_notes: {x:145,  y:1388,size:26, align:'left',   maxW:1190,color:'#000'},
 };
 // parts y: 1~10
 const PY=[693,752,810,869,928,986,1044,1103,1162,1220];
-const PNX=504, PNMW=470, PNOX=1049, PNOMW=570, PSZ=24;
+const PNX=504, PNMW=470, PNOX=1049, PNOMW=570, PSZ=27;
 
 let tok=null, ssId='', cId='', sheets=[], selSheets=[], sdMap={}, fList=[], fIdx=0, blobs=[];
 
 // ── 초기화 ──
+// ── OAuth Client ID 고정 (개인용 앱) ──
+const FIXED_CLIENT_ID = '764317576361-k25ir8cg376tmhr95cht7e0dukdaivrd.apps.googleusercontent.com';  // ← 본인 Client ID로 교체
+
 window.onload=()=>{
-  const sc=localStorage.getItem('as_cid')||'';
   const ss=localStorage.getItem('as_ssid')||'';
-  if(sc) document.getElementById('cid').value=sc;
   if(ss) document.getElementById('ssid').value=ss;
 };
 
 // ── 로그인 ──
 function doLogin(){
-  cId=document.getElementById('cid').value.trim();
-  ssId=document.getElementById('ssid').value.trim();
-  if(!cId){toast('Client ID를 입력해주세요');return;}
-  if(!ssId){toast('스프레드시트 ID를 입력해주세요');return;}
-  const m=ssId.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if(m) ssId=m[1];
+  cId = FIXED_CLIENT_ID;
+  const raw = document.getElementById('ssid').value.trim();
+  if(!raw){toast('스프레드시트 URL/ID를 입력해주세요');return;}
+  // 전체 URL이든 ID만이든 자동 추출
+  const m = raw.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  ssId = m ? m[1] : raw.replace(/[^a-zA-Z0-9_-]/g,'');
+  if(!ssId){toast('올바른 시트 URL 또는 ID를 입력해주세요');return;}
   if(typeof google==='undefined'||!google.accounts){toast('Google 라이브러리 로딩 중... 잠시 후 다시 시도');return;}
-  localStorage.setItem('as_cid',cId); localStorage.setItem('as_ssid',ssId);
+  localStorage.setItem('as_ssid', ssId);
   const b=document.getElementById('lbtn');
   b.innerHTML='<span class="sp"></span> 로그인 중...'; b.disabled=true;
   google.accounts.oauth2.initTokenClient({
