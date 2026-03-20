@@ -235,71 +235,117 @@ async function goForms(){
   }catch(e){toast('데이터 로딩 실패: '+e.message);}
 }
 
-// ── 시트 파싱 (A3:J27 기준, rows[0]=row3) ──
-// row3=A3, row4=A4(제목), row5=A5(고객명) → rows[2]
-// row6=A6(유무상) → rows[3], row7=A7(CS번호) → rows[4]
-// parts rows[7~16] = row10~19
-// 특이사항 rows[18,19] = row21,22 (헤더=rows[18], 내용=rows[19,20])
-// 소요시간 rows[22] = row25
+// ── 시트 파싱 - 라벨로 행을 직접 탐색 (행 위치가 시트마다 달라도 OK) ──
 function buildForms(){
   const today=new Date();
   const td=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   fList=selSheets.map(name=>{
     const rows=sdMap[name]||[];
-    // A3:J27 읽으면 rows[0]=row3, rows[2]=row5(고객명)
-    // 디버그 로그 분석 결과:
-    // rows[3] = 고객명/모델명/방문일 행 (A="고객명", B=값, E=모델명, G="방문일", H=값)
-    // rows[4] = 유무상/Sr.No/생산일 행 (A=유무상값, E="Sr.No.", F=값, G="생산일", H=값)
-    // rows[5] = CS번호/문제점 행 (B=CS값, E=문제점값)
-    const r_cust = rows[3]||[];  // 고객명 행
-    const r_svc  = rows[4]||[];  // 유무상 행
-    const r_cs   = rows[5]||[];  // CS번호 행
-    const r25    = rows[22]||[]; // 소요시간 행
 
-    console.log(`[${name}] 파싱:`, JSON.stringify({r_cust,r_svc,r_cs,r25}));
+    // 각 행을 순회하며 라벨로 해당 행 찾기
+    let r_cust=[], r_svc=[], r_cs=[];
+    let partsStart=-1, notesStart=-1;
 
-    // 고객명: B열 (index 1)
-    const customer_name = (r_cust[1]||'').trim();
-    
-    // 모델명: E열 (index 4)
-    const model_name = (r_cust[4]||'').trim();
-    
-    // 방문일: H열 (index 7) — 비어있으면 오늘
-    const visit_date = (r_cust[7]||r_cust[8]||'').trim() || td;
-    
-    // 유상/무상/재인입: A열 (index 0)
-    const service_type = (r_svc[0]||'').trim();
-    
-    // Sr.No: F열 (index 5)
-    const serial_no = (r_svc[5]||'').trim();
-    
-    // 생산일: H열 (index 7)
-    const prod_date = (r_svc[7]||r_svc[8]||'').trim();
-    
-    // CS번호: B열 (index 1)
-    const cs_number = (r_cs[1]||'').trim();
-    
-    // 문제점: E열 (index 4)
-    const problem = (r_cs[4]||r_cs[5]||r_cs[6]||'').trim();
+    for(let i=0;i<rows.length;i++){
+      const r=rows[i];
+      const a=(r[0]||'').trim();
+      const b=(r[1]||'').trim();
 
-    // parts: rows[7~16] = row10~19
-    const parts=[];
-    for(let i=0;i<10;i++){
-      const pr=rows[7+i]||[];
-      // 부품명: B열=pr[1], 비고: D열=pr[3]
-      parts.push({name:(pr[1]||'').trim(), note:(pr[3]||'').trim()});
+      // 고객명 행: A열="고객명" 이고 B열에 값이 있음
+      if(a==='고객명' && b && b!=='고객명') { r_cust=r; }
+
+      // 유/무상 행: A열이 유상|무상|재인입 이거나, 행 안에 "Sr.No" 포함
+      if(['유상','무상','재인입'].includes(a) ||
+         r.some(c=>(c||'').toString().includes('Sr.No'))) {
+        // 단, 이 행 자체가 라벨행이 아닌 경우만 (값이 있어야)
+        if(['유상','무상','재인입'].includes(a) || (r[5]||'').trim()) {
+          r_svc=r;
+        }
+      }
+
+      // CS번호 행: A열="CS번호"
+      if(a==='CS번호') { r_cs=r; }
+
+      // 교체내역 부품 시작: A열이 숫자 "1" 이고 앞 행에 "NO" 가 있는 경우
+      // 또는 A열이 빈값이고 B열에 "NO"가 있는 경우
+      if((r[1]||'').trim()==='NO' && partsStart===-1) { partsStart=i+1; }
+
+      // 특이사항 내용 시작: A열="특이사항" 다음 행
+      if(a==='특이사항' && notesStart===-1) { notesStart=i+1; }
     }
 
-    // 특이사항 내용: rows[19]=row22, rows[20]=row23 (헤더인 rows[18]=row21 제외)
-    const n1=(rows[19]||[]).filter((_,i)=>i>0).join(' ').trim(); // A열(라벨) 제외
-    const n2=(rows[20]||[]).filter((_,i)=>i>0).join(' ').trim();
-    const special_notes=[n1,n2].filter(Boolean).join('\n');
+    console.log(`[${name}] r_cust:`,JSON.stringify(r_cust));
+    console.log(`[${name}] r_svc:`,JSON.stringify(r_svc));
+    console.log(`[${name}] r_cs:`,JSON.stringify(r_cs));
+    console.log(`[${name}] partsStart:`,partsStart,'notesStart:',notesStart);
 
-    // 소요시간/작업자: row25 (rows[22])
-    const time_required=(r25[1]||r25[2]||'30').trim()||'30';
-    const worker=(r25[4]||r25[5]||'정수호').trim()||'정수호';
+    // ── 필드 추출 ──
+    // 고객명: B열(index 1)
+    const customer_name=(r_cust[1]||'').trim();
 
-    return {sheet_name:name,customer_name,model_name,model_color:'',visit_date,service_type,serial_no,prod_date,cs_number,problem,parts,special_notes,time_required,worker};
+    // 모델명: E열(index 4)
+    const model_name=(r_cust[4]||'').trim();
+
+    // 방문일: H열(index 7), 없으면 오늘
+    const visit_date=(r_cust[7]||r_cust[8]||'').trim()||td;
+
+    // 유/무상/재인입: A열(index 0)
+    const service_type=(r_svc[0]||'').trim();
+
+    // Sr.No 값: Sr.No 라벨 다음 칸
+    let serial_no='';
+    for(let j=0;j<r_svc.length;j++){
+      if((r_svc[j]||'').toString().includes('Sr.No')){
+        serial_no=(r_svc[j+1]||'').toString().trim(); break;
+      }
+    }
+
+    // 생산일: "생산일" 라벨 다음 칸
+    let prod_date='';
+    for(let j=0;j<r_svc.length;j++){
+      if((r_svc[j]||'').toString().includes('생산일')){
+        prod_date=(r_svc[j+1]||'').toString().trim(); break;
+      }
+    }
+
+    // CS번호: B열(index 1)
+    const cs_number=(r_cs[1]||'').trim();
+
+    // 문제점: "문제점" 라벨 다음에 오는 비어있지 않은 값
+    let problem='';
+    for(let j=0;j<r_cs.length;j++){
+      if((r_cs[j]||'').toString().includes('문제점')){
+        // 라벨 이후 첫 번째 값
+        for(let k=j+1;k<r_cs.length;k++){
+          const v=(r_cs[k]||'').trim();
+          if(v){problem=v;break;}
+        }
+        break;
+      }
+    }
+    // 문제점을 못 찾으면 index 4
+    if(!problem) problem=(r_cs[4]||r_cs[5]||r_cs[6]||'').trim();
+
+    // ── 교체 내역 (NO 헤더 다음 10행) ──
+    const parts=[];
+    if(partsStart>-1){
+      for(let i=0;i<10;i++){
+        const pr=rows[partsStart+i]||[];
+        parts.push({name:(pr[1]||'').trim(), note:(pr[3]||'').trim()});
+      }
+    } else {
+      for(let i=0;i<10;i++) parts.push({name:'',note:''});
+    }
+
+    // ── 특이사항 (특이사항 라벨 다음 1~2행) ──
+    let special_notes='';
+    if(notesStart>-1){
+      const n1=((rows[notesStart]||[]).slice(0).join(' ')).trim();
+      const n2=((rows[notesStart+1]||[]).slice(0).join(' ')).trim();
+      special_notes=[n1,n2].filter(Boolean).join('\n');
+    }
+
+    return {sheet_name:name,customer_name,model_name,model_color:'',visit_date,service_type,serial_no,prod_date,cs_number,problem,parts,special_notes,time_required:'30',worker:'정수호'};
   });
 }
 
@@ -321,9 +367,19 @@ function renderForm(i){
       </div>
     </div>
     <div class="fg"><label>고객명</label><input type="text" id="fcname" value="${esc(d.customer_name)}" placeholder="고객명 직접 입력 가능"></div>
-    <div class="fr c2">
-      <div><label>모델명</label><input type="text" id="fmodel" value="${esc(d.model_name)}"></div>
-      <div><label>색상</label><input type="text" id="fcolor" value="${esc(d.model_color)}" placeholder="예: 실버, 블랙"></div>
+    <div class="fg">
+      <label>모델명</label><input type="text" id="fmodel" value="${esc(d.model_name)}">
+    </div>
+    <div class="fg">
+      <label>색상</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+        ${['실버','화이트','베이지','그레이','블랙','표시안함'].map(c=>`
+        <label style="display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;color:var(--tx);cursor:pointer;padding:6px 12px;border:1.5px solid var(--bd);border-radius:20px;background:${d.model_color===c?'var(--primary)':'var(--s)'};color:${d.model_color===c?'#fff':'var(--tx)'}">
+          <input type="radio" name="fcolor_r" value="${c}" style="display:none" ${d.model_color===c?'checked':''}
+            onchange="document.querySelectorAll('[name=fcolor_r]').forEach(r=>r.parentElement.style.background=r.checked?(r.value==='표시안함'?'#888':'var(--primary)'):'var(--s)');this.parentElement.style.color=this.checked?'#fff':'var(--tx)'">
+          ${c}
+        </label>`).join('')}
+      </div>
     </div>
     <div class="fr c2">
       <div><label>방문일</label><input type="date" id="fdate" value="${esc(d.visit_date)}"></div>
@@ -362,7 +418,7 @@ function saveF(){
   const d=fList[fIdx];
   d.customer_name=document.getElementById('fcname').value;
   d.model_name   =document.getElementById('fmodel').value;
-  d.model_color  =document.getElementById('fcolor').value;
+  d.model_color  = (document.querySelector('[name=fcolor_r]:checked')?.value||'').replace('표시안함','');
   d.visit_date   =document.getElementById('fdate').value;
   d.service_type =document.getElementById('fsvc').value;
   d.serial_no    =document.getElementById('fsno').value;
