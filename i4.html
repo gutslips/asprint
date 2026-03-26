@@ -757,7 +757,7 @@ async function dlAll(){
   for(const f of blobs){
     const a=document.createElement('a');
     a.href=f.url; a.download=f.fn; a.click();
-    await sleep(500);
+    //await sleep(500);
   }
   toast('✅ 전체 저장 완료');
 }
