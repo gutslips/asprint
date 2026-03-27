@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+//<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -659,8 +659,85 @@ function fname(d, idx){
 }
 
 // ── 부품 세트 (localStorage) ──
-function getPresets(){ try{return JSON.parse(localStorage.getItem('as_presets')||'[]');}catch{return[];} }
-function savePresets(p){ localStorage.setItem('as_presets', JSON.stringify(p)); }
+//function getPresets(){ try{return JSON.parse(localStorage.getItem('as_presets')||'[]');}catch{return[];} }
+//function savePresets(p){ localStorage.setItem('as_presets', JSON.stringify(p)); }
+
+  
+  
+// 프리셋 수정 시작
+const PRESET_URL = 'https://raw.githubusercontent.com/gutslips/asprint/main/presets.json';
+
+// 프리셋 불러오기 (GitHub에서)
+async function loadPresetsFromGitHub() {
+  try {
+    const response = await fetch(PRESET_URL);
+    if(!response.ok) return getLocalPresets();
+    return await response.json();
+  } catch(e) {
+    console.log('GitHub 로드 실패:', e);
+    return getLocalPresets();
+  }
+}
+
+// 로컬 저장소에서 불러오기
+function getLocalPresets() {
+  try {
+    return JSON.parse(localStorage.getItem('as_presets')||'[]');
+  } catch {
+    return [];
+  }
+}
+
+// 프리셋 불러오기 (GitHub 또는 로컬)
+async function getPresets() {
+  if(tok) return await loadPresetsFromGitHub();
+  return getLocalPresets();
+}
+
+// GitHub에 저장
+async function savePresetsToGitHub(presets) {
+  if(!tok) return;
+  try {
+    // 1. 현재 파일 SHA 가져오기
+    const getResponse = await fetch(
+      'https://api.github.com/repos/gutslips/asprint/contents/presets.json',
+      { headers: { 'Authorization': `Bearer ${tok}` } }
+    );
+    const fileData = await getResponse.json();
+    
+    // 2. 파일 업데이트
+    const updateResponse = await fetch(
+      'https://api.github.com/repos/gutslips/asprint/contents/presets.json',
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${tok}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: `Update presets - ${new Date().toISOString()}`,
+          content: btoa(JSON.stringify(presets, null, 2)),
+          sha: fileData.sha
+        })
+      }
+    );
+    
+    if(updateResponse.ok) {
+      toast('☁️ GitHub 저장 완료');
+    }
+  } catch(e) {
+    console.log('GitHub 저장 실패:', e);
+  }
+}
+
+// 저장 함수 (로컬 + GitHub)
+async function savePresets(p) {
+  localStorage.setItem('as_presets', JSON.stringify(p));
+  if(tok) await savePresetsToGitHub(p);
+}
+
+//프리셋 수정 end 
+  
 
 let editingPresetIdx = -1; // -1=신규
 
