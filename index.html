@@ -664,87 +664,15 @@ function fname(d, idx){
 
   
   
-// 프리셋 수정 시작
-const PRESET_URL = 'https://raw.githubusercontent.com/gutslips/asprint/main/presets.json';
 
-// 프리셋 불러오기 (GitHub에서)
-async function loadPresetsFromGitHub() {
-  try {
-    const response = await fetch(PRESET_URL);
-    if(!response.ok) return getLocalPresets();
-    return await response.json();
-  } catch(e) {
-    console.log('GitHub 로드 실패:', e);
-    return getLocalPresets();
-  }
-}
-
-// 로컬 저장소에서 불러오기
-function getLocalPresets() {
-  try {
-    return JSON.parse(localStorage.getItem('as_presets')||'[]');
-  } catch {
-    return [];
-  }
-}
-
-// 프리셋 불러오기 (GitHub 또는 로컬)
-async function getPresets() {
-  if(tok) return await loadPresetsFromGitHub();
-  return getLocalPresets();
-}
-
-// GitHub에 저장
-async function savePresetsToGitHub(presets) {
-  if(!tok) return;
-  try {
-    // 1. 현재 파일 SHA 가져오기
-    const getResponse = await fetch(
-      'https://api.github.com/repos/gutslips/asprint/contents/presets.json',
-      { headers: { 'Authorization': `Bearer ${tok}` } }
-    );
-    const fileData = await getResponse.json();
-    
-    // 2. 파일 업데이트
-    const updateResponse = await fetch(
-      'https://api.github.com/repos/gutslips/asprint/contents/presets.json',
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${tok}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: `Update presets - ${new Date().toISOString()}`,
-          content: btoa(JSON.stringify(presets, null, 2)),
-          sha: fileData.sha
-        })
-      }
-    );
-    
-    if(updateResponse.ok) {
-      toast('☁️ GitHub 저장 완료');
-    }
-  } catch(e) {
-    console.log('GitHub 저장 실패:', e);
-  }
-}
-
-// 저장 함수 (로컬 + GitHub)
-async function savePresets(p) {
-  localStorage.setItem('as_presets', JSON.stringify(p));
-  if(tok) await savePresetsToGitHub(p);
-}
-
-//프리셋 수정 end 
   
 
 let editingPresetIdx = -1; // -1=신규
 
-function openPresetModal(idx){
+async function openPresetModal(idx){
   editingPresetIdx = (idx===undefined) ? -1 : idx;
   const modal = document.getElementById('presetModal');
-  const presets = getPresets();
+  const presets = await getPresets();  // ← await 추가!
 
   if(editingPresetIdx >= 0){
     const p = presets[editingPresetIdx];
@@ -776,18 +704,15 @@ function addPsetRow(){
     <button onclick="this.closest('.prow').remove()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--s2);cursor:pointer;color:#e53935;font-size:16px">✕</button>`;
   c.appendChild(div);
 }
-function savePreset(){
+async function savePreset(){
   const name=document.getElementById('psetName').value.trim();
   if(!name){toast('세트 이름을 입력해주세요');return;}
-  const rows=[...document.querySelectorAll('#psetRows .prow')].map(r=>{
-    const ins=r.querySelectorAll('input');
-    return {n:ins[0].value.trim(), o:ins[1].value.trim()};
-  }).filter(r=>r.n||r.o);
+  const rows=[...document.querySelectorAll('#psetRows .prow')].map(r=>{...});
   if(!rows.length){toast('부품을 1개 이상 입력해주세요');return;}
-  const presets=getPresets();
+  const presets = await getPresets();  // ← await 추가
   if(editingPresetIdx>=0) presets[editingPresetIdx]={name,rows};
   else presets.push({name,rows});
-  savePresets(presets);
+  await savePresets(presets);  // ← await 추가
   closePresetModal();
   renderPresetChips();
   toast(`"${name}" 세트 저장 완료`);
