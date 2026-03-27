@@ -1,3 +1,14 @@
+// js/ui.js 상단에 export 추가
+export { show, toast, esc, renderForm, prevF, nextF, dlAll, goBack, buildForms, renderList };
+export let fIdx = 0;
+export let blobs = [];
+
+// goBack 함수가 없으면 추가
+export function goBack() {
+  show('s-sheets');
+  document.getElementById('hs').textContent = 'STEP 1/3';
+}
+
 import { fList } from './data.js';
 import { renderJPG, getFileName } from './canvas.js';
 
