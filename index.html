@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>방문AS 접수증</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--primary:#1a73e8;--pd:#1557b0;--s:#fff;--s2:#f8f9fa;--bd:#e0e0e0;--tx:#202124;--ts:#5f6368;--rad:12px;--sh:0 2px 8px rgba(0,0,0,.12)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -129,9 +130,12 @@ textarea{resize:vertical;min-height:70px}
 <div class="sc" id="s-export">
 <div class="card">
   <div class="ct">🎉 JPG 생성 완료</div>
+  <div id="exportStats" style="font-size:14px;font-weight:600;color:var(--primary);margin-bottom:14px;padding:10px 14px;background:#e8f0fe;border-radius:8px;"></div>
   <div id="el"></div>
 </div>
-<button class="btn bo" style="margin-bottom:12px" onclick="dlAll()">⬇️ 전체 다운로드</button>
+<button class="btn bp" style="margin-bottom:10px" onclick="dlAll()">
+  📦 ZIP으로 한번에 다운로드
+</button>
 <button class="btn bs" onclick="goBack()">← 처음으로</button>
 </div>
 
@@ -184,7 +188,7 @@ let tok=null, ssId='', cId='', sheets=[], sheetsData=[], selSheets=[], sdMap={},
 
 // ── 초기화 ──
 // ── OAuth Client ID 고정 (개인용 앱) ──
-const FIXED_CLIENT_ID = 'YOUR_CLIENT_ID_HERE';  // ← 본인 Client ID로 교체
+const FIXED_CLIENT_ID = '764317576361-k25ir8cg376tmhr95cht7e0dukdaivrd.apps.googleusercontent.com';  // ← 본인 Client ID로 교체
 
 window.onload=()=>{
   const ss=localStorage.getItem('as_ssid')||'';
@@ -594,7 +598,12 @@ async function genAll(){
     grid.appendChild(cell);
   });
 
-  toast('✅ 모든 JPG 생성 완료! 이미지 클릭하면 저장');
+  // 통계
+  const stats={};
+  fList.forEach(d=>{ const k=d.service_type||'기타'; stats[k]=(stats[k]||0)+1; });
+  const statMsg=Object.entries(stats).map(([k,v])=>`${k} ${v}건`).join(' · ');
+  document.getElementById('exportStats').textContent=`총 ${fList.length}건 — ${statMsg}`;
+  toast(`✅ 완료! ${statMsg}`);
 }
 
 async function renderJPG(tmpl, d){
@@ -752,13 +761,21 @@ function renderPresetChips(){
 }
 
 async function dlAll(){
-  toast('다운로드 중...');
+  if(!blobs.length){toast('생성된 파일이 없습니다');return;}
+  toast('ZIP 파일 생성 중...');
+  const zip=new JSZip();
   for(const f of blobs){
-    const a=document.createElement('a');
-    a.href=f.url; a.download=f.fn; a.click();
-    await sleep(500);
+    const ab=await f.blob.arrayBuffer();
+    zip.file(f.fn, ab);
   }
-  toast('✅ 전체 저장 완료');
+  const zipBlob=await zip.generateAsync({type:'blob'});
+  const today=new Date();
+  const dt=`${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(zipBlob);
+  a.download=`AS접수증_${dt}.zip`;
+  a.click();
+  toast('✅ ZIP 다운로드 완료!');
 }
 function gf(url){return fetch(url,{headers:{Authorization:`Bearer ${tok}`}});}
 function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});}
