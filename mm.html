@@ -429,36 +429,32 @@ function buildForms(){
 // 부품 행 삭제 함수 - 중간 삭제 시 아래 항목들이 위로 올라옴 (모든 인덱스 정상 동작)
 function deletePartRow(rowIdx) {
   const d = fList[fIdx];
-  if(!d || !d.parts) return;
-  
-  // 현재 부품 목록에서 삭제할 인덱스 제외하고 앞으로 당기기
-  const newParts = [];
-  for(let i = 0; i < 10; i++) {
-    if(i !== rowIdx) {
-      newParts.push({
-        name: d.parts[i]?.name || '', 
-        note: d.parts[i]?.note || ''
-      });
-    }
+  if (!d || !d.parts) return;
+
+  // 1. 사용자 경험을 위해 현재 입력된 최신 데이터를 배열에 먼저 저장
+  for (let i = 0; i < 10; i++) {
+    const nameVal = document.getElementById('pn' + i)?.value || '';
+    const noteVal = document.getElementById('po' + i)?.value || '';
+    d.parts[i] = { name: nameVal, note: noteVal };
   }
-  // 10개가 되도록 빈 항목 채우기
-  while(newParts.length < 10) {
-    newParts.push({name: '', note: ''});
+
+  // 2. 해당 인덱스 삭제 (데이터가 위로 한 칸씩 당겨짐)
+  d.parts.splice(rowIdx, 1);
+
+  // 3. 삭제 후 부족한 칸(10개 기준)을 빈 데이터로 채우기
+  while (d.parts.length < 10) {
+    d.parts.push({ name: '', note: '' });
   }
-  
-  // 데이터 업데이트
-  for(let i = 0; i < 10; i++) {
-    d.parts[i] = newParts[i];
+
+  // 4. 수정된 데이터를 화면 UI(Input)에 다시 뿌려주기
+  for (let i = 0; i < 10; i++) {
+    const nameEl = document.getElementById('pn' + i);
+    const noteEl = document.getElementById('po' + i);
+    if (nameEl) nameEl.value = d.parts[i].name;
+    if (noteEl) noteEl.value = d.parts[i].note;
   }
-  
-  // UI 입력값 동기화
-  for(let i = 0; i < 10; i++) {
-    const nameEl = document.getElementById('pn'+i);
-    const noteEl = document.getElementById('po'+i);
-    if(nameEl) nameEl.value = d.parts[i].name;
-    if(noteEl) noteEl.value = d.parts[i].note;
-  }
-  toast(`${rowIdx+1}번 항목 삭제, 아래 항목이 위로 정렬됨`);
+
+  toast(`${rowIdx + 1}번 항목 삭제 완료`);
 }
 
 // ── 폼 렌더링 (호버 시 X 버튼) ──
