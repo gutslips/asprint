@@ -431,22 +431,26 @@ function deletePartRow(rowIdx) {
   const d = fList[fIdx];
   if (!d || !d.parts) return;
 
-  // 1. 사용자 경험을 위해 현재 입력된 최신 데이터를 배열에 먼저 저장
+  // 1. [중요] 삭제 전, 현재 화면에 입력된 모든 값을 안전하게 수집
+  let tempParts = [];
   for (let i = 0; i < 10; i++) {
     const nameVal = document.getElementById('pn' + i)?.value || '';
     const noteVal = document.getElementById('po' + i)?.value || '';
-    d.parts[i] = { name: nameVal, note: noteVal };
+    tempParts.push({ name: nameVal, note: noteVal });
   }
 
-  // 2. 해당 인덱스 삭제 (데이터가 위로 한 칸씩 당겨짐)
-  d.parts.splice(rowIdx, 1);
+  // 2. 선택한 줄(rowIdx)만 삭제 (이 단계에서 아래 줄들이 위로 당겨짐)
+  tempParts.splice(rowIdx, 1);
 
-  // 3. 삭제 후 부족한 칸(10개 기준)을 빈 데이터로 채우기
-  while (d.parts.length < 10) {
-    d.parts.push({ name: '', note: '' });
+  // 3. 삭제 후 부족한 10번째 칸을 빈 데이터로 채움
+  while (tempParts.length < 10) {
+    tempParts.push({ name: '', note: '' });
   }
 
-  // 4. 수정된 데이터를 화면 UI(Input)에 다시 뿌려주기
+  // 4. 수정한 데이터를 실제 데이터 객체(fList)에 반영
+  d.parts = tempParts;
+
+  // 5. 변경된 데이터를 화면(UI)에 즉시 적용
   for (let i = 0; i < 10; i++) {
     const nameEl = document.getElementById('pn' + i);
     const noteEl = document.getElementById('po' + i);
@@ -454,7 +458,7 @@ function deletePartRow(rowIdx) {
     if (noteEl) noteEl.value = d.parts[i].note;
   }
 
-  toast(`${rowIdx + 1}번 항목 삭제 완료`);
+  toast(`${rowIdx + 1}번 항목이 삭제되고 아래 항목들이 정렬되었습니다.`);
 }
 
 // ── 폼 렌더링 (호버 시 X 버튼) ──
