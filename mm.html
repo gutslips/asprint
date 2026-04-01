@@ -95,6 +95,7 @@ textarea{resize:vertical;min-height:70px}
   opacity: 0;
   transition: opacity 0.2s ease;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  z-index: 10;
 }
 .part-delete-btn:hover {
   background: #ff4444;
@@ -106,6 +107,7 @@ textarea{resize:vertical;min-height:70px}
 }
 .pt td:last-child {
   padding-right: 32px;
+  position: relative;
 }
 </style>
 </head>
@@ -219,6 +221,7 @@ const PY=[693,752,810,869,928,986,1044,1103,1162,1220];
 const PNX=504, PNMW=470, PNOX=1049, PNOMW=570, PSZ=27;
 
 let tok=null, ssId='', cId='', sheets=[], sheetsData=[], selSheets=[], sdMap={}, fList=[], fIdx=0, blobs=[];
+let templateImage = null; // base.png 이미지 저장
 
 // ── 초기화 ──
 const FIXED_CLIENT_ID = '764317576361-k25ir8cg376tmhr95cht7e0dukdaivrd.apps.googleusercontent.com';  // ← 본인 Client ID로 교체
@@ -226,7 +229,22 @@ const FIXED_CLIENT_ID = '764317576361-k25ir8cg376tmhr95cht7e0dukdaivrd.apps.goog
 window.onload=()=>{
   const ss=localStorage.getItem('as_ssid')||'';
   if(ss) document.getElementById('ssid').value=ss;
+  // base.png 미리 로드
+  loadTemplateImage();
 };
+
+// base.png 이미지 로드
+function loadTemplateImage() {
+  templateImage = new Image();
+  templateImage.onload = () => {
+    console.log('base.png 로드 완료');
+  };
+  templateImage.onerror = () => {
+    console.error('base.png 로드 실패 - 파일이 같은 폴더에 있는지 확인하세요');
+    toast('base.png 파일을 찾을 수 없습니다. 같은 폴더에 이미지 파일이 있어야 합니다.');
+  };
+  templateImage.src = 'base.png';
+}
 
 // ── 로그인 ──
 function doLogin(){
@@ -408,24 +426,31 @@ function buildForms(){
   });
 }
 
-// 부품 행 삭제 함수 - 중간 삭제 시 아래 항목들이 위로 올라옴
+// 부품 행 삭제 함수 - 중간 삭제 시 아래 항목들이 위로 올라옴 (모든 인덱스 정상 동작)
 function deletePartRow(rowIdx) {
   const d = fList[fIdx];
-  // 삭제할 인덱스의 데이터를 제거하고 나머지를 한 칸씩 앞으로 이동
+  if(!d || !d.parts) return;
+  
+  // 현재 부품 목록에서 삭제할 인덱스 제외하고 앞으로 당기기
   const newParts = [];
   for(let i = 0; i < 10; i++) {
     if(i !== rowIdx) {
-      newParts.push({name: d.parts[i].name, note: d.parts[i].note});
+      newParts.push({
+        name: d.parts[i]?.name || '', 
+        note: d.parts[i]?.note || ''
+      });
     }
   }
-  // 마지막에 빈 항목 추가하여 10개 유지
+  // 10개가 되도록 빈 항목 채우기
   while(newParts.length < 10) {
     newParts.push({name: '', note: ''});
   }
+  
   // 데이터 업데이트
   for(let i = 0; i < 10; i++) {
     d.parts[i] = newParts[i];
   }
+  
   // UI 입력값 동기화
   for(let i = 0; i < 10; i++) {
     const nameEl = document.getElementById('pn'+i);
@@ -492,7 +517,7 @@ function renderForm(i){
       <button onclick="openPresetModal()" class="preset-btn">＋ 세트 관리</button>
     </div>
     <div id="presetChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
-    <table class="pt"><thead><tr><th>NO</th><th>부품명</th><th>비고</th></tr></thead><tbody>${pt}</tbody></table>
+    <table class="pt"><thead> <th>NO</th><th>부품명</th><th>비고</th> </thead><tbody>${pt}</tbody> </table>
     <button onclick="clearParts()" style="margin-top:8px;padding:6px 12px;border-radius:8px;font-size:12px;background:var(--s2);border:1px solid var(--bd);cursor:pointer;color:var(--ts)">전체 지우기</button>
   </div>
   <div class="card">
@@ -528,65 +553,128 @@ function saveF(){
 function nextF(){saveF(); if(fIdx<fList.length-1){fIdx++;renderForm(fIdx);window.scrollTo(0,0);}else{genAll();}}
 function prevF(){if(!fIdx)return; saveF();fIdx--;renderForm(fIdx);window.scrollTo(0,0);}
 
-// ── JPG 생성 (기존과 동일) ──
+// ── JPG 생성 (base.png 사용) ──
 async function genAll(){
-  toast('JPG 생성 중...'); show('s-export');
+  if(!templateImage || !templateImage.complete || templateImage.naturalWidth === 0) {
+    toast('이미지 템플릿(base.png)을 로드 중입니다. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+  
+  toast('JPG 생성 중...');
+  show('s-export');
   document.getElementById('hs').textContent='STEP 3/3';
   document.getElementById('el').innerHTML='<p style="color:var(--ts);font-size:14px;padding:8px">생성 중...</p>';
-  const tmpl=await loadImg(B64); blobs=[];
-  const res=[];
-  for(let idx=0; idx<fList.length; idx++){
-    const d=fList[idx];
-    const blob=await renderJPG(tmpl,d);
-    const fn=fname(d,idx), url=URL.createObjectURL(blob);
-    blobs.push({fn,url,blob}); res.push({fn,url});
+  
+  blobs = [];
+  const res = [];
+  
+  for(let idx = 0; idx < fList.length; idx++){
+    const d = fList[idx];
+    const blob = await renderJPG(templateImage, d);
+    const fn = fname(d, idx);
+    const url = URL.createObjectURL(blob);
+    blobs.push({fn, url, blob});
+    res.push({fn, url});
   }
-  const el=document.getElementById('el'); el.innerHTML='';
-  const grid=document.createElement('div');
-  grid.style.cssText='display:grid;grid-template-columns:repeat(8,1fr);gap:8px;';
+  
+  const el = document.getElementById('el');
+  el.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:8px;';
   el.appendChild(grid);
+  
   res.forEach(r=>{
-    const cell=document.createElement('div');
-    cell.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;';
-    const img=document.createElement('img');
-    img.src=r.url;
-    img.style.cssText='width:100%;aspect-ratio:0.707;object-fit:cover;border-radius:4px;border:1px solid var(--bd);cursor:pointer;';
-    img.title='클릭하여 저장';
-    img.onclick=()=>{const a=document.createElement('a');a.href=r.url;a.download=r.fn;a.click();};
-    const label=document.createElement('div');
+    const cell = document.createElement('div');
+    cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+    const img = document.createElement('img');
+    img.src = r.url;
+    img.style.cssText = 'width:100%;aspect-ratio:0.707;object-fit:cover;border-radius:4px;border:1px solid var(--bd);cursor:pointer;';
+    img.title = '클릭하여 저장';
+    img.onclick = ()=>{
+      const a = document.createElement('a');
+      a.href = r.url;
+      a.download = r.fn;
+      a.click();
+    };
+    const label = document.createElement('div');
     const shortName = r.fn.replace(/^\d{8}_/,'').replace(/\.jpg$/,'');
-    label.textContent=shortName;
-    label.style.cssText='font-size:10px;color:var(--ts);text-align:center;word-break:break-all;line-height:1.3;width:100%;';
+    label.textContent = shortName;
+    label.style.cssText = 'font-size:10px;color:var(--ts);text-align:center;word-break:break-all;line-height:1.3;width:100%;';
     cell.appendChild(img);
     cell.appendChild(label);
     grid.appendChild(cell);
   });
-  const stats={};
-  fList.forEach(d=>{ const k=d.service_type||'기타'; stats[k]=(stats[k]||0)+1; });
-  const statMsg=Object.entries(stats).map(([k,v])=>`${k} ${v}건`).join(' · ');
-  document.getElementById('exportStats').textContent=`총 ${fList.length}건 — ${statMsg}`;
+  
+  const stats = {};
+  fList.forEach(d=>{ const k = d.service_type||'기타'; stats[k] = (stats[k]||0)+1; });
+  const statMsg = Object.entries(stats).map(([k,v])=>`${k} ${v}건`).join(' · ');
+  document.getElementById('exportStats').textContent = `총 ${fList.length}건 — ${statMsg}`;
   toast(`✅ 완료! ${statMsg}`);
 }
 
 async function renderJPG(tmpl, d){
-  const cv=document.getElementById('cv'); cv.width=W; cv.height=H;
-  const ctx=cv.getContext('2d');
-  ctx.drawImage(tmpl,0,0,W,H);
-  function dt(text, cfg){ if(!text) return; ctx.font=`bold ${cfg.size}px 'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif`; ctx.fillStyle=cfg.color||'#000'; ctx.textAlign=cfg.align||'left'; ctx.textBaseline='middle'; ctx.fillText(text, cfg.x, cfg.y, cfg.maxW); }
-  const mfull=d.model_color?`${d.model_name} ${d.model_color}`:d.model_name;
-  dt(d.customer_name, F.customer_name); dt(mfull, F.model_name); dt(d.visit_date, F.visit_date);
-  dt(d.service_type, F.service_type); dt(d.serial_no, F.serial_no); dt(d.prod_date, F.prod_date);
-  dt(d.cs_number, F.cs_number); dt(d.problem, F.problem); dt(d.time_required, F.time_required);
-  dt(d.worker, F.worker);
-  if(d.special_notes){
-    ctx.font=`bold ${F.special_notes.size}px 'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
-    ctx.fillStyle='#000'; ctx.textAlign='left'; ctx.textBaseline='middle';
-    d.special_notes.split('\n').forEach((ln,li)=>{ ctx.fillText(ln, F.special_notes.x, F.special_notes.y+li*34, F.special_notes.maxW); });
+  const cv = document.getElementById('cv');
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(tmpl, 0, 0, W, H);
+  
+  function dt(text, cfg){
+    if(!text) return;
+    ctx.font = `bold ${cfg.size}px 'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
+    ctx.fillStyle = cfg.color || '#000';
+    ctx.textAlign = cfg.align || 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, cfg.x, cfg.y, cfg.maxW);
   }
-  for(let i=0;i<10;i++){ const y=PY[i]; if(!y) continue; ctx.font=`bold ${PSZ}px 'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif`; ctx.textBaseline='middle'; if(d.parts[i]?.name){ctx.fillStyle='#000';ctx.textAlign='center';ctx.fillText(d.parts[i].name,PNX,y,PNMW);} if(d.parts[i]?.note){ctx.fillStyle='#000';ctx.textAlign='center';ctx.fillText(d.parts[i].note,PNOX,y,PNOMW);} }
-  return new Promise(r=>cv.toBlob(r,'image/jpeg',0.95));
+  
+  const mfull = d.model_color ? `${d.model_name} ${d.model_color}` : d.model_name;
+  dt(d.customer_name, F.customer_name);
+  dt(mfull, F.model_name);
+  dt(d.visit_date, F.visit_date);
+  dt(d.service_type, F.service_type);
+  dt(d.serial_no, F.serial_no);
+  dt(d.prod_date, F.prod_date);
+  dt(d.cs_number, F.cs_number);
+  dt(d.problem, F.problem);
+  dt(d.time_required, F.time_required);
+  dt(d.worker, F.worker);
+  
+  if(d.special_notes){
+    ctx.font = `bold ${F.special_notes.size}px 'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
+    ctx.fillStyle = '#000';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    d.special_notes.split('\n').forEach((ln, li)=>{
+      ctx.fillText(ln, F.special_notes.x, F.special_notes.y + li * 34, F.special_notes.maxW);
+    });
+  }
+  
+  for(let i = 0; i < 10; i++){
+    const y = PY[i];
+    if(!y) continue;
+    ctx.font = `bold ${PSZ}px 'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
+    ctx.textBaseline = 'middle';
+    if(d.parts[i]?.name){
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      ctx.fillText(d.parts[i].name, PNX, y, PNMW);
+    }
+    if(d.parts[i]?.note){
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      ctx.fillText(d.parts[i].note, PNOX, y, PNOMW);
+    }
+  }
+  
+  return new Promise(r => cv.toBlob(r, 'image/jpeg', 0.95));
 }
-function fname(d, idx){ const dt=d.visit_date.replace(/-/g,''); const seq=String(idx+1).padStart(2,'0'); return `${seq}_${dt}_${d.customer_name||'unknown'}_${d.service_type||'AS'}.jpg`; }
+
+function fname(d, idx){ 
+  const dt = d.visit_date.replace(/-/g,''); 
+  const seq = String(idx+1).padStart(2,'0'); 
+  return `${seq}_${dt}_${d.customer_name||'unknown'}_${d.service_type||'AS'}.jpg`; 
+}
 
 // ── 부품 세트 (localStorage) ──
 function getPresets(){ try{return JSON.parse(localStorage.getItem('as_presets')||'[]');}catch(e){return[];} }
@@ -696,7 +784,6 @@ async function dlAll(){
   toast('✅ ZIP 다운로드 완료!'); 
 }
 function gf(url){return fetch(url,{headers:{Authorization:`Bearer ${tok}`}});}
-function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});}
 function show(id){document.querySelectorAll('.sc').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on');window.scrollTo(0,0);}
 function toast(msg,dur=2800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),dur);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
