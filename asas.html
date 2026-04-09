@@ -1056,7 +1056,7 @@ function show(id){document.querySelectorAll('.sc').forEach(s=>s.classList.remove
 function toast(msg,dur=2800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),dur);}
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function goBack(){show('s-sheets');document.getElementById('hs').textContent='STEP 1/3';}
-function goToHome(){show('s-login');document.getElementById('hs').textContent='';}
+function goToHome(){show('s-sheets');document.getElementById('hs').textContent='STEP 1/3';}
 function goBackFromStats(){show(lastScreenBeforeStats);if(lastScreenBeforeStats==='s-sheets'){document.getElementById('hs').textContent='STEP 1/3';}}
 function openEditStatModal(date){editingStatDate=date;const allStats=getAllStats();const stat=allStats[date];if(!stat){toast('데이터를 찾을 수 없습니다');return;}document.getElementById('editStatDate').value=date;document.getElementById('editStatTotal').value=stat.total||0;document.getElementById('editStatPaid').value=stat.유상||0;document.getElementById('editStatFree').value=stat.무상||0;document.getElementById('editStatReentry').value=stat.재인입||0;document.getElementById('editStatModal').classList.add('on');}
 function closeEditStatModal(){document.getElementById('editStatModal').classList.remove('on');editingStatDate=null;}
