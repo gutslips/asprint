@@ -18,6 +18,8 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans
 .hdr button{padding:6px 12px;border-radius:6px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:12px;cursor:pointer;font-weight:500;transition:all .15s}
 .hdr button:hover{background:rgba(255,255,255,0.3)}
 .sc{display:none;padding:20px;max-width:640px;margin:0 auto}
+#s-stats{max-width:none;padding:15px}
+#s-stats .card{padding:15px;margin-bottom:12px}
 .sc.on{display:block}
 .card{background:var(--s);border-radius:var(--rad);padding:20px;margin-bottom:16px;box-shadow:var(--sh)}
 .ct{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -99,18 +101,30 @@ textarea{resize:vertical;min-height:70px}
 .month-tab:hover{border-color:var(--primary);background:#e8f0fe}
 .month-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 /* 펼침/접기 테이블 */
-.expand-table{width:100%;border-collapse:collapse;margin-top:12px}
-.expand-table .summary-row{background:var(--s2);cursor:pointer;user-select:none}
-.expand-table .summary-row:hover{background:#e8f0fe}
-.expand-table .summary-row th,.expand-table .summary-row td{padding:12px 8px;font-size:14px;font-weight:600;border:1px solid var(--bd);text-align:center}
-.expand-table .summary-row th:first-child,.expand-table .summary-row td:first-child{text-align:left;font-size:13px}
+.expand-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+.expand-table thead{background:var(--s2)}
+.expand-table thead tr th{padding:8px;font-size:12px;font-weight:600;border:1px solid var(--bd);text-align:center}
+.expand-table .summary-row{background:#fff;cursor:pointer;user-select:none;font-size:12px}
+.expand-table .summary-row:hover{background:#f5f9ff}
+.expand-table .summary-row td{padding:8px;border:1px solid var(--bd);text-align:center;height:28px;vertical-align:middle}
+.expand-table .summary-row td:nth-child(1){text-align:center;width:5%}
+.expand-table .summary-row td:nth-child(2){text-align:center;width:15%;font-weight:500}
+.expand-table .summary-row td:nth-child(3){text-align:center;width:8%}
+.expand-table .summary-row td:nth-child(4){text-align:left;width:22%;padding-left:12px}
+.expand-table .summary-row td:nth-child(5){text-align:center;width:8%}
+.expand-table .summary-row td:nth-child(6){text-align:left;width:22%;padding-left:12px}
+.expand-table .summary-row td:nth-child(7){text-align:center;width:10%}
 .expand-table .detail-row{display:none}
 .expand-table .detail-row.show{display:table-row}
-.expand-table .detail-row td{padding:8px;background:#f8f9fa;border-left:1px solid var(--bd);border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);font-size:12px}
-.expand-table .detail-row td:first-child{text-align:left;padding-left:40px}
-.expand-toggle{display:inline-block;width:16px;text-align:center;margin-right:4px;font-size:12px;color:var(--primary);font-weight:bold}
-.expand-table .summary-row.expanded .expand-toggle::before{content:'▼'}
-.expand-table .summary-row:not(.expanded) .expand-toggle::before{content:'▶'}
+.expand-table .detail-row td{padding:0;background:#fff;border:1px solid var(--bd)}
+.expand-table .detail-row td table{width:100%;border-collapse:collapse;font-size:11px}
+.expand-table .detail-row td table thead tr{background:#f8f9fa}
+.expand-table .detail-row td table thead th{padding:6px;font-size:11px;font-weight:600;border-bottom:1px solid var(--bd);text-align:left}
+.expand-table .detail-row td table tbody tr{border-bottom:1px solid #eee}
+.expand-table .detail-row td table tbody td{padding:5px 6px;text-align:left}
+.expand-toggle{display:inline-block;width:14px;text-align:center;font-size:11px;color:var(--primary);font-weight:bold}
+.expand-table .summary-row.expanded{background:#e8f0fe}
+.expand-table tbody tr:last-child td{font-weight:600;background:#f5f5f5;border:1px solid var(--bd)}
 </style>
 </head>
 <body>
@@ -437,12 +451,12 @@ function selectMonth(month) {
     <table class="expand-table">
       <thead>
         <tr>
-          <th style="width:10%"></th>
-          <th style="text-align:center;width:10%">날짜</th>
-          <th style="text-align:center;width:10%">무상</th>
-          <th style="text-align:left;width:25%">무상_고객</th>
-          <th style="text-align:center;width:10%">유상</th>
-          <th style="text-align:left;width:25%">유상_고객</th>
+          <th style="width:5%"></th>
+          <th style="text-align:center;width:15%">날짜</th>
+          <th style="text-align:center;width:8%">무상</th>
+          <th style="text-align:left;width:22%">무상 고객</th>
+          <th style="text-align:center;width:8%">유상</th>
+          <th style="text-align:left;width:22%">유상 고객</th>
           <th style="text-align:center;width:10%">편집</th>
         </tr>
       </thead>
@@ -461,13 +475,13 @@ function selectMonth(month) {
       tableHTML += `
         <tr class="summary-row" onclick="toggleDetails('${date}', this)">
           <td><span class="expand-toggle"></span></td>
-          <td style="text-align:center">${date}</td>
-          <td style="text-align:center">${s.무상}</td>
-          <td style="text-align:left">${freeCustomers}</td>
-          <td style="text-align:center">${s.유상}</td>
-          <td style="text-align:left">${paidCustomers}</td>
-          <td style="text-align:center">
-            <button class="btn bs" style="padding:4px 12px;font-size:11px" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+          <td>${date}</td>
+          <td>${s.무상}</td>
+          <td>${freeCustomers}</td>
+          <td>${s.유상}</td>
+          <td>${paidCustomers}</td>
+          <td>
+            <button class="btn bs" style="padding:3px 8px;font-size:10px" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
           </td>
         </tr>
       `;
@@ -477,17 +491,17 @@ function selectMonth(month) {
         tableHTML += `
           <tr class="detail-row" data-date="${date}">
             <td colspan="7">
-              <table style="width:100%;border-collapse:collapse">
+              <table>
                 <thead>
-                  <tr style="background:#fff;border-bottom:2px solid var(--bd)">
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">고객명</th>
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">기종</th>
-                    <th style="text-align:center;padding:6px;font-size:12px;font-weight:600">유무상</th>
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">시리얼</th>
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">생산일</th>
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">CS번호</th>
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">문제점</th>
-                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">부품</th>
+                  <tr>
+                    <th>고객명</th>
+                    <th>기종</th>
+                    <th>유무상</th>
+                    <th>시리얼</th>
+                    <th>생산일</th>
+                    <th>CS번호</th>
+                    <th>문제점</th>
+                    <th>부품</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -495,15 +509,15 @@ function selectMonth(month) {
         
         s.details.forEach(item => {
           tableHTML += `
-                  <tr style="border-bottom:1px solid var(--bd)">
-                    <td style="padding:6px;font-size:12px">${item.customer_name}</td>
-                    <td style="padding:6px;font-size:12px">${item.model_name}</td>
-                    <td style="padding:6px;font-size:12px;text-align:center">${item.service_type}</td>
-                    <td style="padding:6px;font-size:12px">${item.serial_no}</td>
-                    <td style="padding:6px;font-size:12px">${item.prod_date}</td>
-                    <td style="padding:6px;font-size:12px">${item.cs_number}</td>
-                    <td style="padding:6px;font-size:12px">${item.problem}</td>
-                    <td style="padding:6px;font-size:12px">${item.parts}</td>
+                  <tr>
+                    <td>${item.customer_name}</td>
+                    <td>${item.model_name}</td>
+                    <td>${item.service_type}</td>
+                    <td>${item.serial_no}</td>
+                    <td>${item.prod_date}</td>
+                    <td>${item.cs_number}</td>
+                    <td>${item.problem}</td>
+                    <td>${item.parts}</td>
                   </tr>
           `;
         });
@@ -519,7 +533,7 @@ function selectMonth(month) {
     
     // 월별 합계
     tableHTML += `
-      <tr style="background:#f0f4f8;font-weight:700">
+      <tr style="background:#f0f4f8;font-weight:700;font-size:13px">
         <td></td>
         <td style="text-align:center">월 합계</td>
         <td style="text-align:center">${monthTotal.무상}</td>
@@ -1007,9 +1021,9 @@ async function genAll(){
   
   document.getElementById('exportStats').textContent = `총 ${fList.length}건 — ${statMsg}`;
   
-  // 오늘 날짜로 통계 저장
+  // 오늘 날짜와 시간으로 통계 저장
   const today = new Date();
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')} ${String(today.getHours()).padStart(2,'0')}:${String(today.getMinutes()).padStart(2,'0')}:${String(today.getSeconds()).padStart(2,'0')}`;
   saveStats(stats, dateStr, detailList);
   
   toast(`✅ 완료! ${statMsg}`);
