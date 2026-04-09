@@ -8,6 +8,7 @@
 <title>방문AS 접수증</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.18.5/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{--primary:#1a73e8;--pd:#1557b0;--s:#fff;--s2:#f8f9fa;--bd:#e0e0e0;--tx:#202124;--ts:#5f6368;--rad:12px;--sh:0 2px 8px rgba(0,0,0,.12)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -774,22 +775,21 @@ function downloadStatsSummary() {
     return;
   }
   
-  let csv = '날짜\t무상\t무상_고객\t유상\t유상_고객\n';
+  const data = [['날짜', '무상', '무상 고객', '유상', '유상 고객']];
   const dates = Object.keys(allStats).sort();
   
   dates.forEach(date => {
     const s = allStats[date];
     const paidCustomers = (s.유상_workers || []).join(', ');
     const freeCustomers = (s.무상_workers || []).join(', ');
-    
-    csv += `${date}\t${s.무상}\t${freeCustomers}\t${s.유상}\t${paidCustomers}\n`;
+    data.push([date, s.무상, freeCustomers, s.유상, paidCustomers]);
   });
   
-  const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `AS수리내역_${new Date().toISOString().slice(0,10)}.csv`;
-  link.click();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:15}, {wch:10}, {wch:30}, {wch:10}, {wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '수리내역');
+  XLSX.writeFile(wb, `AS수리내역_${new Date().toISOString().slice(0,10)}.xlsx`);
   
   toast('수리내역 다운로드 완료');
 }
@@ -801,23 +801,23 @@ function downloadServicesDetail() {
     return;
   }
   
-  let csv = '날짜\t고객명\t기종\t유무상\t시리얼\t생산일\tCS번호\t문제점\t부품\n';
+  const data = [['날짜', '고객명', '기종', '유무상', '시리얼', '생산일', 'CS번호', '문제점', '부품']];
   const dates = Object.keys(allStats).sort();
   
   dates.forEach(date => {
     const s = allStats[date];
     if(s.details && s.details.length > 0) {
       s.details.forEach(item => {
-        csv += `${date}\t${item.customer_name}\t${item.model_name}\t${item.service_type}\t${item.serial_no}\t${item.prod_date}\t${item.cs_number}\t${item.problem}\t${item.parts}\n`;
+        data.push([date, item.customer_name, item.model_name, item.service_type, item.serial_no, item.prod_date, item.cs_number, item.problem, item.parts]);
       });
     }
   });
   
-  const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `AS서비스고객_${new Date().toISOString().slice(0,10)}.csv`;
-  link.click();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:15}, {wch:15}, {wch:15}, {wch:10}, {wch:12}, {wch:12}, {wch:12}, {wch:20}, {wch:15}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '서비스고객');
+  XLSX.writeFile(wb, `AS서비스고객_${new Date().toISOString().slice(0,10)}.xlsx`);
   
   toast('서비스고객 다운로드 완료');
 }
