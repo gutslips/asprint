@@ -98,6 +98,19 @@ textarea{resize:vertical;min-height:70px}
 .month-tab{display:inline-flex;align-items:center;gap:4px;padding:8px 16px;border-radius:8px;border:1.5px solid var(--bd);background:var(--s);cursor:pointer;font-size:14px;font-weight:500;margin:0 4px 8px 0;transition:all .15s}
 .month-tab:hover{border-color:var(--primary);background:#e8f0fe}
 .month-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* 펼침/접기 테이블 */
+.expand-table{width:100%;border-collapse:collapse;margin-top:12px}
+.expand-table .summary-row{background:var(--s2);cursor:pointer;user-select:none}
+.expand-table .summary-row:hover{background:#e8f0fe}
+.expand-table .summary-row th,.expand-table .summary-row td{padding:12px 8px;font-size:14px;font-weight:600;border:1px solid var(--bd);text-align:center}
+.expand-table .summary-row th:first-child,.expand-table .summary-row td:first-child{text-align:left;font-size:13px}
+.expand-table .detail-row{display:none}
+.expand-table .detail-row.show{display:table-row}
+.expand-table .detail-row td{padding:8px;background:#f8f9fa;border-left:1px solid var(--bd);border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);font-size:12px}
+.expand-table .detail-row td:first-child{text-align:left;padding-left:40px}
+.expand-toggle{display:inline-block;width:16px;text-align:center;margin-right:4px;font-size:12px;color:var(--primary);font-weight:bold}
+.expand-table .summary-row.expanded .expand-toggle::before{content:'▼'}
+.expand-table .summary-row:not(.expanded) .expand-toggle::before{content:'▶'}
 </style>
 </head>
 <body>
@@ -421,47 +434,98 @@ function selectMonth(month) {
   const dates = Object.keys(monthlyData).sort().reverse();
   
   let tableHTML = `
-    <table class="stat-table">
+    <table class="expand-table">
       <thead>
         <tr>
-          <th>날짜</th>
-          <th style="text-align:center">총합</th>
-          <th style="text-align:center">유상</th>
-          <th style="text-align:center">무상</th>
-          <th style="text-align:center">재인입</th>
-          <th style="text-align:center">편집</th>
+          <th style="width:10%"></th>
+          <th style="text-align:center;width:10%">날짜</th>
+          <th style="text-align:center;width:10%">무상</th>
+          <th style="text-align:left;width:25%">무상_고객</th>
+          <th style="text-align:center;width:10%">유상</th>
+          <th style="text-align:left;width:25%">유상_고객</th>
+          <th style="text-align:center;width:10%">편집</th>
         </tr>
       </thead>
       <tbody>
   `;
   
   if(dates.length === 0) {
-    tableHTML += '<tr><td colspan="6" style="text-align:center;color:var(--ts);padding:20px">이 달의 데이터가 없습니다</td></tr>';
+    tableHTML += '<tr><td colspan="7" style="text-align:center;color:var(--ts);padding:20px">이 달의 데이터가 없습니다</td></tr>';
   } else {
     dates.forEach(date => {
       const s = monthlyData[date];
+      const freeCustomers = (s.무상_workers || []).join(', ');
+      const paidCustomers = (s.유상_workers || []).join(', ');
+      
+      // 요약 행
       tableHTML += `
-        <tr>
-          <td class="date-col" style="cursor:pointer" onclick="openEditStatModal('${date}')" title="클릭하여 수정">${date}</td>
-          <td style="text-align:center;font-weight:600;cursor:pointer" onclick="openEditStatModal('${date}')" title="클릭하여 수정">${s.total}</td>
-          <td style="text-align:center;cursor:pointer" onclick="openEditStatModal('${date}')" title="클릭하여 수정">${s.유상}</td>
-          <td style="text-align:center;cursor:pointer" onclick="openEditStatModal('${date}')" title="클릭하여 수정">${s.무상}</td>
-          <td style="text-align:center;cursor:pointer" onclick="openEditStatModal('${date}')" title="클릭하여 수정">${s.재인입}</td>
+        <tr class="summary-row" onclick="toggleDetails('${date}', this)">
+          <td><span class="expand-toggle"></span></td>
+          <td style="text-align:center">${date}</td>
+          <td style="text-align:center">${s.무상}</td>
+          <td style="text-align:left">${freeCustomers}</td>
+          <td style="text-align:center">${s.유상}</td>
+          <td style="text-align:left">${paidCustomers}</td>
           <td style="text-align:center">
-            <button class="btn bs" style="padding:4px 12px;font-size:11px" onclick="openEditStatModal('${date}')">수정</button>
+            <button class="btn bs" style="padding:4px 12px;font-size:11px" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
           </td>
         </tr>
       `;
+      
+      // 상세 행들
+      if(s.details && s.details.length > 0) {
+        tableHTML += `
+          <tr class="detail-row" data-date="${date}">
+            <td colspan="7">
+              <table style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr style="background:#fff;border-bottom:2px solid var(--bd)">
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">고객명</th>
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">기종</th>
+                    <th style="text-align:center;padding:6px;font-size:12px;font-weight:600">유무상</th>
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">시리얼</th>
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">생산일</th>
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">CS번호</th>
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">문제점</th>
+                    <th style="text-align:left;padding:6px;font-size:12px;font-weight:600">부품</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        s.details.forEach(item => {
+          tableHTML += `
+                  <tr style="border-bottom:1px solid var(--bd)">
+                    <td style="padding:6px;font-size:12px">${item.customer_name}</td>
+                    <td style="padding:6px;font-size:12px">${item.model_name}</td>
+                    <td style="padding:6px;font-size:12px;text-align:center">${item.service_type}</td>
+                    <td style="padding:6px;font-size:12px">${item.serial_no}</td>
+                    <td style="padding:6px;font-size:12px">${item.prod_date}</td>
+                    <td style="padding:6px;font-size:12px">${item.cs_number}</td>
+                    <td style="padding:6px;font-size:12px">${item.problem}</td>
+                    <td style="padding:6px;font-size:12px">${item.parts}</td>
+                  </tr>
+          `;
+        });
+        
+        tableHTML += `
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        `;
+      }
     });
     
     // 월별 합계
     tableHTML += `
       <tr style="background:#f0f4f8;font-weight:700">
-        <td>월 합계</td>
-        <td style="text-align:center">${monthTotal.total}</td>
-        <td style="text-align:center">${monthTotal.유상}</td>
+        <td></td>
+        <td style="text-align:center">월 합계</td>
         <td style="text-align:center">${monthTotal.무상}</td>
-        <td style="text-align:center">${monthTotal.재인입}</td>
+        <td></td>
+        <td style="text-align:center">${monthTotal.유상}</td>
+        <td></td>
         <td></td>
       </tr>
     `;
@@ -469,6 +533,14 @@ function selectMonth(month) {
   
   tableHTML += '</tbody></table>';
   document.getElementById('statsTable').innerHTML = tableHTML;
+}
+
+function toggleDetails(date, row) {
+  row.classList.toggle('expanded');
+  const detailRow = document.querySelector(`.detail-row[data-date="${date}"]`);
+  if(detailRow) {
+    detailRow.classList.toggle('show');
+  }
 }
 
 function downloadStatsCSV() {
@@ -491,14 +563,17 @@ function downloadStatsCSV() {
     const reentryCustomers = (s.재인입_workers || []).join(', ');
     
     // 날짜별 요약 라인
-    csv += `${date} | 무상 ${freeCount} | ${freeCustomers} | 유상 ${paidCount} | ${paidCustomers}`;
-    if(reentryCount > 0) csv += ` | 재인입 ${reentryCount} | ${reentryCustomers}`;
+    csv += `${date}\t무상\t${freeCount}\t${freeCustomers}\t유상\t${paidCount}\t${paidCustomers}`;
+    if(reentryCount > 0) csv += `\t재인입\t${reentryCount}\t${reentryCustomers}`;
     csv += '\n';
+    
+    // 헤더
+    csv += `고객명\t기종\t유무상\t시리얼\t생산일\tCS번호\t문제점\t부품명\n`;
     
     // 상세 항목 (details 정보가 있을 경우)
     if(s.details && s.details.length > 0) {
       s.details.forEach(item => {
-        csv += `${item.customer_name}|${item.model_name}|${item.service_type}|${item.serial_no}|${item.prod_date}|${item.cs_number}|${item.problem}\n`;
+        csv += `${item.customer_name}\t${item.model_name}\t${item.service_type}\t${item.serial_no}\t${item.prod_date}\t${item.cs_number}\t${item.problem}\t${item.parts}\n`;
       });
     }
     csv += '\n'; // 빈 줄
@@ -904,6 +979,9 @@ async function genAll(){
     else if(k === '무상') stats.무상_workers.push(d.customer_name||'미정');
     else if(k === '재인입') stats.재인입_workers.push(d.customer_name||'미정');
     
+    // 부품명 추출 (비어있지 않은 부품들만)
+    const partNames = d.parts.filter(p => p.name && p.name.trim()).map(p => p.name.trim());
+    
     // 상세 정보 수집
     detailList.push({
       customer_name: d.customer_name || '',
@@ -912,7 +990,8 @@ async function genAll(){
       serial_no: d.serial_no || '',
       prod_date: d.prod_date || '',
       cs_number: d.cs_number || '',
-      problem: d.problem || ''
+      problem: d.problem || '',
+      parts: partNames.join(', ')
     });
   });
   
