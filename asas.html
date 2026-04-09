@@ -210,10 +210,44 @@ textarea{resize:vertical;min-height:70px}
   <div id="statsSummary" class="stat-summary"></div>
 </div>
 
+<!-- 검색 및 필터 -->
+<div class="card">
+  <div class="ct" style="font-size:14px">🔍 검색 및 필터</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label style="font-size:12px">기간</label>
+      <select id="filterPeriod" style="width:100%;padding:8px;font-size:13px;border:1px solid var(--bd);border-radius:6px" onchange="updateStatsView()">
+        <option value="all">전체</option>
+        <option value="thisMonth">이번달</option>
+        <option value="lastMonth">지난달</option>
+        <option value="thisYear">올해</option>
+        <option value="lastYear">작년</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:12px">유무상</label>
+      <select id="filterType" style="width:100%;padding:8px;font-size:13px;border:1px solid var(--bd);border-radius:6px" onchange="updateStatsView()">
+        <option value="">전체</option>
+        <option value="유상">유상</option>
+        <option value="무상">무상</option>
+        <option value="재인입">재인입</option>
+      </select>
+    </div>
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:12px">검색어</label>
+    <input type="text" id="searchKeyword" placeholder="고객명, 문제점, CS번호 등으로 검색..." style="width:100%;padding:8px;font-size:13px;border:1px solid var(--bd);border-radius:6px" onkeyup="updateStatsView()">
+  </div>
+  <button class="btn bs" style="width:100%;padding:6px;font-size:12px" onclick="clearFilters()">초기화</button>
+</div>
+
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div class="ct" style="margin:0">📅 월별 내역</div>
-    <button class="btn bs" style="padding:6px 12px;font-size:13px" onclick="downloadStatsCSV()">📥 CSV 다운로드</button>
+    <div style="display:flex;gap:6px">
+      <button class="btn bs" style="padding:6px 10px;font-size:12px" onclick="downloadStatsSummary()">📥 수리내역</button>
+      <button class="btn bs" style="padding:6px 10px;font-size:12px" onclick="downloadServicesDetail()">📥 서비스고객</button>
+    </div>
   </div>
   <div id="monthTabs" style="margin-bottom:16px"></div>
   <div id="statsTable"></div>
@@ -298,8 +332,10 @@ window.onload=()=>{
   if(ss) document.getElementById('ssid').value=ss;
   loadTemplateImage();
   // 버전 정보 표시
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const versionElems = document.querySelectorAll('[data-version]');
-  versionElems.forEach(el => el.textContent = APP_VERSION);
+  versionElems.forEach(el => el.textContent = `${APP_VERSION} ${currentTime}`);
   const dateElems = document.querySelectorAll('[data-update-date]');
   dateElems.forEach(el => el.textContent = UPDATE_DATE);
 };
@@ -557,49 +593,232 @@ function toggleDetails(date, row) {
   }
 }
 
-function downloadStatsCSV() {
+function filterStatsByPeriod(allStats, period) {
+  const now = new Date();
+  const filtered = {};
+  
+  Object.keys(allStats).forEach(dateStr => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    
+    let include = false;
+    if(period === 'all') {
+      include = true;
+    } else if(period === 'thisMonth') {
+      include = year === currentYear && month === currentMonth;
+    } else if(period === 'lastMonth') {
+      let prevMonth = currentMonth - 1;
+      let prevYear = currentYear;
+      if(prevMonth <= 0) { prevMonth = 12; prevYear--; }
+      include = year === prevYear && month === prevMonth;
+    } else if(period === 'thisYear') {
+      include = year === currentYear;
+    } else if(period === 'lastYear') {
+      include = year === currentYear - 1;
+    }
+    
+    if(include) filtered[dateStr] = allStats[dateStr];
+  });
+  
+  return filtered;
+}
+
+function updateStatsView() {
+  const period = document.getElementById('filterPeriod').value;
+  const typeFilter = document.getElementById('filterType').value;
+  const keyword = document.getElementById('searchKeyword').value.toLowerCase();
+  
+  const allStats = getAllStats();
+  const periodFiltered = filterStatsByPeriod(allStats, period);
+  
+  const [year, mon] = currentSelectedMonth.split('-');
+  const monthlyData = {};
+  
+  Object.keys(periodFiltered).forEach(dateStr => {
+    const [y, m] = dateStr.split('-');
+    if(y === year && m === String(parseInt(mon)).padStart(2,'0')) {
+      monthlyData[dateStr] = periodFiltered[dateStr];
+    }
+  });
+  
+  renderFilteredStats(monthlyData, typeFilter, keyword);
+}
+
+function renderFilteredStats(monthlyData, typeFilter, keyword) {
+  const monthTotal = getTotalStats(monthlyData);
+  const dates = Object.keys(monthlyData).sort().reverse();
+  
+  let tableHTML = `
+    <table class="expand-table">
+      <thead>
+        <tr>
+          <th style="width:5%"></th>
+          <th style="text-align:center;width:15%">날짜</th>
+          <th style="text-align:center;width:8%">무상</th>
+          <th style="text-align:left;width:22%">무상 고객</th>
+          <th style="text-align:center;width:8%">유상</th>
+          <th style="text-align:left;width:22%">유상 고객</th>
+          <th style="text-align:center;width:10%">편집</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  
+  if(dates.length === 0) {
+    tableHTML += '<tr><td colspan="7" style="text-align:center;color:var(--ts);padding:20px">검색 결과가 없습니다</td></tr>';
+  } else {
+    dates.forEach(date => {
+      const s = monthlyData[date];
+      let freeCustomers = (s.무상_workers || []).join(',');
+      let paidCustomers = (s.유상_workers || []).join(',');
+      
+      // 필터링된 상세 정보
+      let filteredDetails = [];
+      if(s.details && s.details.length > 0) {
+        filteredDetails = s.details.filter(item => {
+          const typeMatch = !typeFilter || item.service_type === typeFilter;
+          const keywordMatch = !keyword || 
+            item.customer_name.toLowerCase().includes(keyword) ||
+            item.problem.toLowerCase().includes(keyword) ||
+            item.cs_number.toLowerCase().includes(keyword) ||
+            item.model_name.toLowerCase().includes(keyword);
+          return typeMatch && keywordMatch;
+        });
+      }
+      
+      // 필터링된 고객만 표시
+      let filteredFreeCount = 0, filteredPaidCount = 0;
+      if(filteredDetails.length > 0) {
+        filteredFreeCount = filteredDetails.filter(d => d.service_type === '무상').length;
+        filteredPaidCount = filteredDetails.filter(d => d.service_type === '유상').length;
+      }
+      
+      tableHTML += `
+        <tr class="summary-row" onclick="toggleDetails('${date}', this)">
+          <td><span class="expand-toggle"></span></td>
+          <td>${date}</td>
+          <td>${filteredFreeCount}</td>
+          <td>${freeCustomers}</td>
+          <td>${filteredPaidCount}</td>
+          <td>${paidCustomers}</td>
+          <td>
+            <button class="btn bs" style="padding:3px 8px;font-size:10px" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+          </td>
+        </tr>
+      `;
+      
+      // 상세 행
+      if(filteredDetails.length > 0) {
+        tableHTML += `
+          <tr class="detail-row" data-date="${date}">
+            <td colspan="7">
+              <table>
+                <thead>
+                  <tr>
+                    <th>고객명</th>
+                    <th>기종</th>
+                    <th>유무상</th>
+                    <th>시리얼</th>
+                    <th>생산일</th>
+                    <th>CS번호</th>
+                    <th>문제점</th>
+                    <th>부품</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        filteredDetails.forEach(item => {
+          tableHTML += `
+                  <tr>
+                    <td>${item.customer_name}</td>
+                    <td>${item.model_name}</td>
+                    <td>${item.service_type}</td>
+                    <td>${item.serial_no}</td>
+                    <td>${item.prod_date}</td>
+                    <td>${item.cs_number}</td>
+                    <td>${item.problem}</td>
+                    <td>${item.parts}</td>
+                  </tr>
+          `;
+        });
+        
+        tableHTML += `
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        `;
+      }
+    });
+  }
+  
+  tableHTML += '</tbody></table>';
+  document.getElementById('statsTable').innerHTML = tableHTML;
+}
+
+function clearFilters() {
+  document.getElementById('filterPeriod').value = 'all';
+  document.getElementById('filterType').value = '';
+  document.getElementById('searchKeyword').value = '';
+  selectMonth(currentSelectedMonth);
+}
+
+function downloadStatsSummary() {
   const allStats = getAllStats();
   if(Object.keys(allStats).length === 0) {
     toast('다운로드할 통계가 없습니다');
     return;
   }
   
-  let csv = '';
+  let csv = '날짜\t무상\t무상_고객\t유상\t유상_고객\n';
   const dates = Object.keys(allStats).sort();
   
   dates.forEach(date => {
     const s = allStats[date];
-    const paidCount = s.유상 || 0;
-    const freeCount = s.무상 || 0;
-    const reentryCount = s.재인입 || 0;
     const paidCustomers = (s.유상_workers || []).join(', ');
     const freeCustomers = (s.무상_workers || []).join(', ');
-    const reentryCustomers = (s.재인입_workers || []).join(', ');
     
-    // 날짜별 요약 라인
-    csv += `${date}\t무상\t${freeCount}\t${freeCustomers}\t유상\t${paidCount}\t${paidCustomers}`;
-    if(reentryCount > 0) csv += `\t재인입\t${reentryCount}\t${reentryCustomers}`;
-    csv += '\n';
-    
-    // 헤더
-    csv += `고객명\t기종\t유무상\t시리얼\t생산일\tCS번호\t문제점\t부품명\n`;
-    
-    // 상세 항목 (details 정보가 있을 경우)
-    if(s.details && s.details.length > 0) {
-      s.details.forEach(item => {
-        csv += `${item.customer_name}\t${item.model_name}\t${item.service_type}\t${item.serial_no}\t${item.prod_date}\t${item.cs_number}\t${item.problem}\t${item.parts}\n`;
-      });
-    }
-    csv += '\n'; // 빈 줄
+    csv += `${date}\t${s.무상}\t${freeCustomers}\t${s.유상}\t${paidCustomers}\n`;
   });
   
   const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = `AS통계_${new Date().toISOString().slice(0,10)}.csv`;
+  link.download = `AS수리내역_${new Date().toISOString().slice(0,10)}.csv`;
   link.click();
   
-  toast('CSV 파일 다운로드 완료');
+  toast('수리내역 다운로드 완료');
+}
+
+function downloadServicesDetail() {
+  const allStats = getAllStats();
+  if(Object.keys(allStats).length === 0) {
+    toast('다운로드할 통계가 없습니다');
+    return;
+  }
+  
+  let csv = '날짜\t고객명\t기종\t유무상\t시리얼\t생산일\tCS번호\t문제점\t부품\n';
+  const dates = Object.keys(allStats).sort();
+  
+  dates.forEach(date => {
+    const s = allStats[date];
+    if(s.details && s.details.length > 0) {
+      s.details.forEach(item => {
+        csv += `${date}\t${item.customer_name}\t${item.model_name}\t${item.service_type}\t${item.serial_no}\t${item.prod_date}\t${item.cs_number}\t${item.problem}\t${item.parts}\n`;
+      });
+    }
+  });
+  
+  const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `AS서비스고객_${new Date().toISOString().slice(0,10)}.csv`;
+  link.click();
+  
+  toast('서비스고객 다운로드 완료');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1021,9 +1240,9 @@ async function genAll(){
   
   document.getElementById('exportStats').textContent = `총 ${fList.length}건 — ${statMsg}`;
   
-  // 오늘 날짜와 시간으로 통계 저장
+  // 오늘 날짜로 통계 저장
   const today = new Date();
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')} ${String(today.getHours()).padStart(2,'0')}:${String(today.getMinutes()).padStart(2,'0')}:${String(today.getSeconds()).padStart(2,'0')}`;
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   saveStats(stats, dateStr, detailList);
   
   toast(`✅ 완료! ${statMsg}`);
