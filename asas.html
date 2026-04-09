@@ -280,7 +280,7 @@ function loadTemplateImage() {
 // 통계 저장/조회 기능
 // ══════════════════════════════════════════════════════════════
 
-function saveStats(stats, date) {
+function saveStats(stats, date, detailList) {
   try {
     const allStats = JSON.parse(localStorage.getItem('as_daily_stats') || '{}');
     allStats[date] = {
@@ -290,6 +290,10 @@ function saveStats(stats, date) {
       무상: stats.무상 || 0,
       재인입: stats.재인입 || 0,
       기타: stats.기타 || 0,
+      유상_workers: stats.유상_workers || [],
+      무상_workers: stats.무상_workers || [],
+      재인입_workers: stats.재인입_workers || [],
+      details: detailList || [],
       timestamp: new Date().getTime()
     };
     localStorage.setItem('as_daily_stats', JSON.stringify(allStats));
@@ -463,12 +467,30 @@ function downloadStatsCSV() {
     return;
   }
   
-  let csv = '날짜,총합,유상,무상,재인입,기타\n';
+  let csv = '';
   const dates = Object.keys(allStats).sort();
   
   dates.forEach(date => {
     const s = allStats[date];
-    csv += `${date},${s.total},${s.유상},${s.무상},${s.재인입},${s.기타 || 0}\n`;
+    const paidCount = s.유상 || 0;
+    const freeCount = s.무상 || 0;
+    const reentryCount = s.재인입 || 0;
+    const paidCustomers = (s.유상_workers || []).join(', ');
+    const freeCustomers = (s.무상_workers || []).join(', ');
+    const reentryCustomers = (s.재인입_workers || []).join(', ');
+    
+    // 날짜별 요약 라인
+    csv += `${date} | 무상 ${freeCount} | ${freeCustomers} | 유상 ${paidCount} | ${paidCustomers}`;
+    if(reentryCount > 0) csv += ` | 재인입 ${reentryCount} | ${reentryCustomers}`;
+    csv += '\n';
+    
+    // 상세 항목 (details 정보가 있을 경우)
+    if(s.details && s.details.length > 0) {
+      s.details.forEach(item => {
+        csv += `${item.customer_name}|${item.model_name}|${item.service_type}|${item.serial_no}|${item.prod_date}|${item.cs_number}|${item.problem}\n`;
+      });
+    }
+    csv += '\n'; // 빈 줄
   });
   
   const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
@@ -860,14 +882,36 @@ async function genAll(){
   }
   
   // 통계 계산 및 저장
-  const stats = {total: fList.length};
+  const stats = {total: fList.length, 유상_workers: [], 무상_workers: [], 재인입_workers: []};
+  const detailList = [];
+  
   fList.forEach(d=>{ 
     const k = d.service_type||'기타'; 
-    stats[k] = (stats[k]||0)+1; 
+    stats[k] = (stats[k]||0)+1;
+    // 작업자 정보 수집
+    if(k === '유상') stats.유상_workers.push(d.customer_name||'미정');
+    else if(k === '무상') stats.무상_workers.push(d.customer_name||'미정');
+    else if(k === '재인입') stats.재인입_workers.push(d.customer_name||'미정');
+    
+    // 상세 정보 수집
+    detailList.push({
+      customer_name: d.customer_name || '',
+      model_name: d.model_name || '',
+      service_type: k,
+      serial_no: d.serial_no || '',
+      prod_date: d.prod_date || '',
+      cs_number: d.cs_number || '',
+      problem: d.problem || ''
+    });
   });
   
+  // 중복 제거
+  stats.유상_workers = [...new Set(stats.유상_workers)];
+  stats.무상_workers = [...new Set(stats.무상_workers)];
+  stats.재인입_workers = [...new Set(stats.재인입_workers)];
+  
   const statMsg = Object.entries(stats)
-    .filter(([k]) => k !== 'total')
+    .filter(([k]) => k !== 'total' && !k.includes('_workers'))
     .map(([k,v])=>`${k} ${v}건`)
     .join(' · ');
   
@@ -876,7 +920,7 @@ async function genAll(){
   // 오늘 날짜로 통계 저장
   const today = new Date();
   const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  saveStats(stats, dateStr);
+  saveStats(stats, dateStr, detailList);
   
   toast(`✅ 완료! ${statMsg}`);
 }
@@ -1060,7 +1104,34 @@ function goToHome(){show('s-sheets');document.getElementById('hs').textContent='
 function goBackFromStats(){show(lastScreenBeforeStats);if(lastScreenBeforeStats==='s-sheets'){document.getElementById('hs').textContent='STEP 1/3';}}
 function openEditStatModal(date){editingStatDate=date;const allStats=getAllStats();const stat=allStats[date];if(!stat){toast('데이터를 찾을 수 없습니다');return;}document.getElementById('editStatDate').value=date;document.getElementById('editStatTotal').value=stat.total||0;document.getElementById('editStatPaid').value=stat.유상||0;document.getElementById('editStatFree').value=stat.무상||0;document.getElementById('editStatReentry').value=stat.재인입||0;document.getElementById('editStatModal').classList.add('on');}
 function closeEditStatModal(){document.getElementById('editStatModal').classList.remove('on');editingStatDate=null;}
-function saveEditedStat(){const newDate=document.getElementById('editStatDate').value;const allStats=getAllStats();if(!newDate){toast('날짜를 입력해주세요');return;}const paid=parseInt(document.getElementById('editStatPaid').value)||0;const free=parseInt(document.getElementById('editStatFree').value)||0;const reentry=parseInt(document.getElementById('editStatReentry').value)||0;const total=parseInt(document.getElementById('editStatTotal').value)||(paid+free+reentry);if(editingStatDate&&editingStatDate!==newDate&&allStats[editingStatDate]){delete allStats[editingStatDate];}allStats[newDate]={date:newDate,total:total,유상:paid,무상:free,재인입:reentry,기타:0,timestamp:new Date().getTime()};localStorage.setItem('as_daily_stats',JSON.stringify(allStats));toast('통계가 수정되었습니다');closeEditStatModal();renderStatsScreen();}
+function saveEditedStat(){
+  const newDate=document.getElementById('editStatDate').value;
+  const allStats=getAllStats();
+  if(!newDate){toast('날짜를 입력해주세요');return;}
+  const paid=parseInt(document.getElementById('editStatPaid').value)||0;
+  const free=parseInt(document.getElementById('editStatFree').value)||0;
+  const reentry=parseInt(document.getElementById('editStatReentry').value)||0;
+  const total=parseInt(document.getElementById('editStatTotal').value)||(paid+free+reentry);
+  const oldData = allStats[editingStatDate];
+  if(editingStatDate&&editingStatDate!==newDate&&allStats[editingStatDate]){delete allStats[editingStatDate];} 
+  allStats[newDate]={
+    date:newDate,
+    total:total,
+    유상:paid,
+    무상:free,
+    재인입:reentry,
+    기타:0,
+    유상_workers:oldData?.유상_workers||[],
+    무상_workers:oldData?.무상_workers||[],
+    재인입_workers:oldData?.재인입_workers||[],
+    details:oldData?.details||[],
+    timestamp:new Date().getTime()
+  };
+  localStorage.setItem('as_daily_stats',JSON.stringify(allStats));
+  toast('통계가 수정되었습니다');
+  closeEditStatModal();
+  renderStatsScreen();
+}
 function deleteEditingStat(){if(!editingStatDate)return;if(!confirm(`${editingStatDate}의 데이터를 삭제할까요?`))return;const allStats=getAllStats();delete allStats[editingStatDate];localStorage.setItem('as_daily_stats',JSON.stringify(allStats));toast('데이터가 삭제되었습니다');closeEditStatModal();renderStatsScreen();}
 </script>
 </body>
