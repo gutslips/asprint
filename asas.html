@@ -128,6 +128,10 @@ textarea{resize:vertical;min-height:70px}
     <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFF" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
     Google로 로그인
   </button>
+  <div style="position:fixed;bottom:20px;right:20px;font-size:11px;color:#999;text-align:right;line-height:1.4;pointer-events:none">
+    <div data-version></div>
+    <div data-update-date></div>
+  </div>
 </div>
 </div>
 
@@ -236,6 +240,8 @@ textarea{resize:vertical;min-height:70px}
 <script>
 const W=1414, H=2000;
 const SCOPE='https://www.googleapis.com/auth/spreadsheets.readonly';
+const APP_VERSION = '1.2.4'; // ← 버전 업데이트 시 여기만 수정하세요
+const UPDATE_DATE = '2026-04-09';
 
 const F = {
   customer_name: {x:270,  y:310, size:32, align:'left',   maxW:470, color:'#000'},
@@ -264,6 +270,11 @@ window.onload=()=>{
   const ss=localStorage.getItem('as_ssid')||'';
   if(ss) document.getElementById('ssid').value=ss;
   loadTemplateImage();
+  // 버전 정보 표시
+  const versionElems = document.querySelectorAll('[data-version]');
+  versionElems.forEach(el => el.textContent = APP_VERSION);
+  const dateElems = document.querySelectorAll('[data-update-date]');
+  dateElems.forEach(el => el.textContent = UPDATE_DATE);
 };
 
 function loadTemplateImage() {
