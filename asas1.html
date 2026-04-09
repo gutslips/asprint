@@ -113,6 +113,15 @@ textarea{resize:vertical;min-height:70px}
 .btn-search:active{transform:translateY(0)}
 .btn-reset{background:#f5f5f5;color:#666;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;border:1px solid #ddd;cursor:pointer;transition:all .2s}
 .btn-reset:hover{background:#e0e0e0}
+.btn-edit{background:linear-gradient(135deg,#4facfe 0%,#00f2fe 100%);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:600;border:none;cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(79,172,254,.3)}
+.btn-edit:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(79,172,254,.4)}
+.btn-edit:active{transform:translateY(0)}
+.btn-delete{background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:600;border:none;cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(245,87,108,.3)}
+.btn-delete:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(245,87,108,.4)}
+.btn-delete:active{transform:translateY(0)}
+.btn-expand{background:linear-gradient(135deg,#43e97b 0%,#38f9d7 100%);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(67,233,123,.3)}
+.btn-expand:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(67,233,123,.4)}
+.btn-expand:active{transform:translateY(0)}
 /* 펼침/접기 테이블 */
 .expand-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
 .expand-table thead{background:var(--s2)}
@@ -136,6 +145,8 @@ textarea{resize:vertical;min-height:70px}
 .expand-table .detail-row td table tbody tr{border-bottom:1px solid #eee}
 .expand-table .detail-row td table tbody td{padding:5px 6px;text-align:left}
 .expand-toggle{display:inline-block;width:14px;text-align:center;font-size:11px;color:var(--primary);font-weight:bold}
+.expand-toggle::before{content:'▶';display:inline-block;transition:transform .2s}
+.expand-table .summary-row.expanded .expand-toggle::before{transform:rotate(90deg)}
 .expand-table .summary-row.expanded{background:#e8f0fe}
 .expand-table tbody tr:last-child td{font-weight:600;background:#f5f5f5;border:1px solid var(--bd)}
 </style>
@@ -287,6 +298,10 @@ textarea{resize:vertical;min-height:70px}
     </div>
   </div>
   <div id="monthTabs" style="margin-bottom:16px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;justify-content:flex-end">
+    <button class="btn-expand" onclick="expandAll()">📂 전체 펼치기</button>
+    <button class="btn-expand" onclick="collapseAll()">📁 전체 닫기</button>
+  </div>
   <div id="statsTable"></div>
 </div>
 
@@ -553,8 +568,8 @@ function selectMonth(month) {
           <td>${s.유상}</td>
           <td>${paidCustomers}</td>
           <td style="display:flex;gap:4px;justify-content:center">
-            <button class="btn bs" style="padding:3px 8px;font-size:10px;width:45%" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
-            <button class="btn bs" style="padding:3px 8px;font-size:10px;width:45%;background:#ffebee;color:#c5221f" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
+            <button class="btn-edit" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+            <button class="btn-delete" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
           </td>
         </tr>
       `;
@@ -628,6 +643,26 @@ function toggleDetails(date, row) {
   if(detailRow) {
     detailRow.classList.toggle('show');
   }
+}
+
+function expandAll() {
+  const summaryRows = document.querySelectorAll('.expand-table .summary-row');
+  const detailRows = document.querySelectorAll('.expand-table .detail-row');
+  
+  summaryRows.forEach(row => row.classList.add('expanded'));
+  detailRows.forEach(row => row.classList.add('show'));
+  
+  toast('모든 항목이 펼쳐졌습니다');
+}
+
+function collapseAll() {
+  const summaryRows = document.querySelectorAll('.expand-table .summary-row');
+  const detailRows = document.querySelectorAll('.expand-table .detail-row');
+  
+  summaryRows.forEach(row => row.classList.remove('expanded'));
+  detailRows.forEach(row => row.classList.remove('show'));
+  
+  toast('모든 항목이 닫혔습니다');
 }
 
 function toggleCustomDateRange() {
@@ -784,8 +819,8 @@ function renderFilteredStats(monthlyData, typeFilter, keyword) {
           <td>${filteredPaidCount}</td>
           <td>${paidCustomers}</td>
           <td style="display:flex;gap:4px;justify-content:center">
-            <button class="btn bs" style="padding:3px 8px;font-size:10px;width:45%" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
-            <button class="btn bs" style="padding:3px 8px;font-size:10px;width:45%;background:#ffebee;color:#c5221f" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
+            <button class="btn-edit" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+            <button class="btn-delete" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
           </td>
         </tr>
       `;
