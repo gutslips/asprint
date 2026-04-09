@@ -516,8 +516,10 @@ function selectMonth(month) {
           <td>${freeCustomers}</td>
           <td>${s.유상}</td>
           <td>${paidCustomers}</td>
-          <td>
-            <button class="btn bs" style="padding:3px 8px;font-size:10px" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+          <td style="display:flex;gap:4px;justify-content:center">
+            <button class="btn bs" style="padding:3px 6px;font-size:10px;flex:1" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+            <button class="btn bs" style="padding:3px 6px;font-size:10px;flex:1;background:#ffebee;color:#c5221f" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
+            <button class="btn bs" style="padding:3px 6px;font-size:10px;flex:1;background:#ffebee;color:#c5221f;border-color:#c5221f" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
           </td>
         </tr>
       `;
@@ -704,7 +706,8 @@ function renderFilteredStats(monthlyData, typeFilter, keyword) {
           <td>${filteredPaidCount}</td>
           <td>${paidCustomers}</td>
           <td>
-            <button class="btn bs" style="padding:3px 8px;font-size:10px" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+            <button class="btn bs" style="padding:3px 8px;font-size:10px;flex:1;width:45%;display:inline-block" onclick="openEditStatModal('${date}'); event.stopPropagation();">수정</button>
+            <button class="btn bs" style="padding:3px 8px;font-size:10px;flex:1;width:45%;display:inline-block;background:#ffebee;color:#c5221f" onclick="deleteStatData('${date}'); event.stopPropagation();">삭제</button>
           </td>
         </tr>
       `;
@@ -1456,6 +1459,7 @@ function saveEditedStat(){
   renderStatsScreen();
 }
 function deleteEditingStat(){if(!editingStatDate)return;if(!confirm(`${editingStatDate}의 데이터를 삭제할까요?`))return;const allStats=getAllStats();delete allStats[editingStatDate];localStorage.setItem('as_daily_stats',JSON.stringify(allStats));toast('데이터가 삭제되었습니다');closeEditStatModal();renderStatsScreen();}
+function deleteStatData(date){if(!confirm(`${date} 데이터를 삭제할까요?`))return;const allStats=getAllStats();delete allStats[date];localStorage.setItem('as_daily_stats',JSON.stringify(allStats));toast('데이터가 삭제되었습니다');if(currentSelectedMonth){selectMonth(currentSelectedMonth);}else if(document.getElementById('searchKeyword').value){updateStatsView();}else{renderStatsScreen();}}
 </script>
 </body>
 </html>
